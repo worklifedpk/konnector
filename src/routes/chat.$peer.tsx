@@ -38,18 +38,24 @@ function ChatPage() {
   const [peerInfo, setPeerInfo] = useState<Peer | null>(null);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [text, setText] = useState("");
+  const [allowed, setAllowed] = useState<"checking" | "yes" | "no">("checking");
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const load = async () => {
-      const [{ data: p }, { data: m }] = await Promise.all([
+      const [{ data: p }, { data: req }, { data: m }] = await Promise.all([
         supabase.from("konnect_users").select("session_id,name,age,skills").eq("session_id", peer).maybeSingle(),
+        supabase.from("konnect_requests").select("status,from_session,to_session")
+          .or(`and(from_session.eq.${me},to_session.eq.${peer}),and(from_session.eq.${peer},to_session.eq.${me})`)
+          .gt("expires_at", new Date().toISOString())
+          .maybeSingle(),
         supabase.from("konnect_messages").select("*")
           .or(`and(from_session.eq.${me},to_session.eq.${peer}),and(from_session.eq.${peer},to_session.eq.${me})`)
           .order("created_at", { ascending: true }),
       ]);
       if (p) setPeerInfo(p as Peer);
       setMsgs((m ?? []) as Msg[]);
+      setAllowed(req && (req as any).status === "accepted" ? "yes" : "no");
     };
     load();
     const ch = supabase
@@ -63,6 +69,7 @@ function ChatPage() {
           setMsgs((prev) => [...prev, m]);
         }
       })
+      .on("postgres_changes", { event: "*", schema: "public", table: "konnect_requests" }, load)
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [me, peer]);
