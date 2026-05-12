@@ -14,7 +14,93 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      konnect_messages: {
+        Row: {
+          content: string
+          created_at: string
+          expires_at: string
+          from_session: string
+          id: string
+          kind: string
+          to_session: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          expires_at?: string
+          from_session: string
+          id?: string
+          kind?: string
+          to_session: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          expires_at?: string
+          from_session?: string
+          id?: string
+          kind?: string
+          to_session?: string
+        }
+        Relationships: []
+      }
+      konnect_users: {
+        Row: {
+          age: number | null
+          created_at: string
+          expires_at: string
+          gender: string | null
+          id: string
+          instagram: string | null
+          intent: string
+          interests: string[] | null
+          location_lat: number
+          location_lng: number
+          location_name: string | null
+          mode: string
+          name: string
+          photo_url: string | null
+          session_id: string
+          skills: string | null
+        }
+        Insert: {
+          age?: number | null
+          created_at?: string
+          expires_at?: string
+          gender?: string | null
+          id?: string
+          instagram?: string | null
+          intent?: string
+          interests?: string[] | null
+          location_lat: number
+          location_lng: number
+          location_name?: string | null
+          mode?: string
+          name: string
+          photo_url?: string | null
+          session_id: string
+          skills?: string | null
+        }
+        Update: {
+          age?: number | null
+          created_at?: string
+          expires_at?: string
+          gender?: string | null
+          id?: string
+          instagram?: string | null
+          intent?: string
+          interests?: string[] | null
+          location_lat?: number
+          location_lng?: number
+          location_name?: string | null
+          mode?: string
+          name?: string
+          photo_url?: string | null
+          session_id?: string
+          skills?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
