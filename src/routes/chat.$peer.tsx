@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getSessionId } from "@/lib/session";
-import { ArrowLeft, Send, Hand, ThumbsUp, Eye } from "lucide-react";
+import { ArrowLeft, Send, Hand, ThumbsUp, Eye, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/chat/$peer")({
