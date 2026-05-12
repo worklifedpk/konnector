@@ -80,12 +80,33 @@ function ChatPage() {
 
   const send = async (content: string, kind = "text") => {
     if (!content.trim()) return;
+    if (allowed !== "yes") { toast.error("You need an accepted request to chat."); return; }
     const { error } = await supabase.from("konnect_messages").insert({
       from_session: me, to_session: peer, content: content.slice(0, 500), kind,
     });
     if (error) { toast.error(error.message); return; }
     if (kind === "text") setText("");
   };
+
+  if (allowed === "no") {
+    return (
+      <main className="grid min-h-screen place-items-center px-4">
+        <div className="glass-strong w-full max-w-md rounded-3xl p-8 text-center animate-float-up">
+          <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-gradient-gold text-accent-foreground">
+            <MessageCircle className="h-5 w-5" />
+          </div>
+          <h2 className="mt-4 font-display text-xl font-bold">Chat is locked</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Send a connection request first. Once they accept, your chat opens here.
+          </p>
+          <button onClick={() => nav({ to: "/live" })}
+            className="mt-6 inline-flex items-center gap-2 rounded-full bg-gradient-royal px-5 py-2.5 text-sm font-semibold text-primary-foreground glow-royal">
+            Back to Discover
+          </button>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="flex min-h-screen flex-col">
