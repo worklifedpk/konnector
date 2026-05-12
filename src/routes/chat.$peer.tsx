@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getSessionId } from "@/lib/session";
-import { ArrowLeft, Send, Hand, ThumbsUp, Eye } from "lucide-react";
+import { ArrowLeft, Send, Hand, ThumbsUp, Eye, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/chat/$peer")({
@@ -38,18 +38,24 @@ function ChatPage() {
   const [peerInfo, setPeerInfo] = useState<Peer | null>(null);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [text, setText] = useState("");
+  const [allowed, setAllowed] = useState<"checking" | "yes" | "no">("checking");
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const load = async () => {
-      const [{ data: p }, { data: m }] = await Promise.all([
+      const [{ data: p }, { data: req }, { data: m }] = await Promise.all([
         supabase.from("konnect_users").select("session_id,name,age,skills").eq("session_id", peer).maybeSingle(),
+        supabase.from("konnect_requests").select("status,from_session,to_session")
+          .or(`and(from_session.eq.${me},to_session.eq.${peer}),and(from_session.eq.${peer},to_session.eq.${me})`)
+          .gt("expires_at", new Date().toISOString())
+          .maybeSingle(),
         supabase.from("konnect_messages").select("*")
           .or(`and(from_session.eq.${me},to_session.eq.${peer}),and(from_session.eq.${peer},to_session.eq.${me})`)
           .order("created_at", { ascending: true }),
       ]);
       if (p) setPeerInfo(p as Peer);
       setMsgs((m ?? []) as Msg[]);
+      setAllowed(req && (req as any).status === "accepted" ? "yes" : "no");
     };
     load();
     const ch = supabase
@@ -63,6 +69,7 @@ function ChatPage() {
           setMsgs((prev) => [...prev, m]);
         }
       })
+      .on("postgres_changes", { event: "*", schema: "public", table: "konnect_requests" }, load)
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [me, peer]);
@@ -73,12 +80,33 @@ function ChatPage() {
 
   const send = async (content: string, kind = "text") => {
     if (!content.trim()) return;
+    if (allowed !== "yes") { toast.error("You need an accepted request to chat."); return; }
     const { error } = await supabase.from("konnect_messages").insert({
       from_session: me, to_session: peer, content: content.slice(0, 500), kind,
     });
     if (error) { toast.error(error.message); return; }
     if (kind === "text") setText("");
   };
+
+  if (allowed === "no") {
+    return (
+      <main className="grid min-h-screen place-items-center px-4">
+        <div className="glass-strong w-full max-w-md rounded-3xl p-8 text-center animate-float-up">
+          <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-gradient-gold text-accent-foreground">
+            <MessageCircle className="h-5 w-5" />
+          </div>
+          <h2 className="mt-4 font-display text-xl font-bold">Chat is locked</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Send a connection request first. Once they accept, your chat opens here.
+          </p>
+          <button onClick={() => nav({ to: "/live" })}
+            className="mt-6 inline-flex items-center gap-2 rounded-full bg-gradient-royal px-5 py-2.5 text-sm font-semibold text-primary-foreground glow-royal">
+            Back to Discover
+          </button>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="flex min-h-screen flex-col">

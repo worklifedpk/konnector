@@ -44,6 +44,33 @@ export type Database = {
         }
         Relationships: []
       }
+      konnect_requests: {
+        Row: {
+          created_at: string
+          expires_at: string
+          from_session: string
+          id: string
+          status: string
+          to_session: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string
+          from_session: string
+          id?: string
+          status?: string
+          to_session: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          from_session?: string
+          id?: string
+          status?: string
+          to_session?: string
+        }
+        Relationships: []
+      }
       konnect_users: {
         Row: {
           age: number | null
