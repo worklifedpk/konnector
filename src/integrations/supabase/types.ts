@@ -14,6 +14,102 @@ export type Database = {
   }
   public: {
     Tables: {
+      konnect_group_members: {
+        Row: {
+          expires_at: string
+          group_id: string
+          id: string
+          joined_at: string
+          session_id: string
+        }
+        Insert: {
+          expires_at?: string
+          group_id: string
+          id?: string
+          joined_at?: string
+          session_id: string
+        }
+        Update: {
+          expires_at?: string
+          group_id?: string
+          id?: string
+          joined_at?: string
+          session_id?: string
+        }
+        Relationships: []
+      }
+      konnect_group_requests: {
+        Row: {
+          created_at: string
+          expires_at: string
+          from_session: string
+          group_id: string
+          id: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string
+          from_session: string
+          group_id: string
+          id?: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          from_session?: string
+          group_id?: string
+          id?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      konnect_groups: {
+        Row: {
+          created_at: string
+          description: string | null
+          event_type: string
+          expires_at: string
+          id: string
+          location_lat: number
+          location_lng: number
+          location_name: string | null
+          max_size: number
+          mode: string
+          name: string
+          owner_session: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          event_type: string
+          expires_at?: string
+          id?: string
+          location_lat: number
+          location_lng: number
+          location_name?: string | null
+          max_size?: number
+          mode: string
+          name: string
+          owner_session: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          event_type?: string
+          expires_at?: string
+          id?: string
+          location_lat?: number
+          location_lng?: number
+          location_name?: string | null
+          max_size?: number
+          mode?: string
+          name?: string
+          owner_session?: string
+        }
+        Relationships: []
+      }
       konnect_messages: {
         Row: {
           content: string
@@ -75,6 +171,8 @@ export type Database = {
         Row: {
           age: number | null
           created_at: string
+          email: string | null
+          event_type: string | null
           expires_at: string
           gender: string | null
           id: string
@@ -93,6 +191,8 @@ export type Database = {
         Insert: {
           age?: number | null
           created_at?: string
+          email?: string | null
+          event_type?: string | null
           expires_at?: string
           gender?: string | null
           id?: string
@@ -111,6 +211,8 @@ export type Database = {
         Update: {
           age?: number | null
           created_at?: string
+          email?: string | null
+          event_type?: string | null
           expires_at?: string
           gender?: string | null
           id?: string
