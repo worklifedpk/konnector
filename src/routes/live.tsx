@@ -1,41 +1,44 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { getSessionId } from "@/lib/session";
+import { getSessionId, clearSession } from "@/lib/session";
 import {
   ArrowLeft, MessageCircle, MapPin, Users, Search, LogOut, Instagram,
-  Map as MapIcon, List, Bell, Check, X, Send, Clock,
+  Map as MapIcon, List, Bell, Check, X, Send, Clock, Plus, UserPlus, Crown,
 } from "lucide-react";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/live")({
-  component: LivePage,
-});
+export const Route = createFileRoute("/live")({ component: LivePage });
+
+const sb = supabase as any;
 
 type LiveUser = {
-  id: string;
-  session_id: string;
-  name: string;
-  age: number | null;
-  gender: string | null;
-  intent: string;
-  mode: string;
-  location_name: string | null;
-  location_lat: number;
-  location_lng: number;
-  skills: string | null;
-  instagram: string | null;
-  interests: string[] | null;
-  expires_at: string;
+  id: string; session_id: string; name: string;
+  age: number | null; gender: string | null;
+  intent: string; mode: string;
+  location_name: string | null; location_lat: number; location_lng: number;
+  skills: string | null; instagram: string | null;
+  interests: string[] | null; expires_at: string;
 };
 
 type Req = {
-  id: string;
-  from_session: string;
-  to_session: string;
-  status: "pending" | "accepted" | "declined";
-  created_at: string;
+  id: string; from_session: string; to_session: string;
+  status: "pending" | "accepted" | "declined"; created_at: string;
 };
+
+type Group = {
+  id: string; owner_session: string; name: string;
+  event_type: string; mode: string;
+  location_name: string | null; location_lat: number; location_lng: number;
+  max_size: number; description: string | null; expires_at: string;
+};
+
+type GroupReq = {
+  id: string; group_id: string; from_session: string;
+  status: "pending" | "accepted" | "declined";
+};
+
+type GroupMember = { id: string; group_id: string; session_id: string };
 
 function distKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
   const R = 6371;
@@ -52,40 +55,50 @@ function LivePage() {
   const [meRow, setMeRow] = useState<LiveUser | null>(null);
   const [users, setUsers] = useState<LiveUser[]>([]);
   const [requests, setRequests] = useState<Req[]>([]);
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [groupReqs, setGroupReqs] = useState<GroupReq[]>([]);
+  const [groupMembers, setGroupMembers] = useState<GroupMember[]>([]);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"all" | "event" | "nearby">("all");
   const [view, setView] = useState<"list" | "map">("list");
-  const [tab, setTab] = useState<"discover" | "inbox">("discover");
+  const [tab, setTab] = useState<"discover" | "groups" | "inbox">("discover");
+  const [showCreate, setShowCreate] = useState(false);
 
   useEffect(() => {
     if (!me) { nav({ to: "/start" }); return; }
 
     const load = async () => {
-      const [{ data: u }, { data: r }] = await Promise.all([
-        supabase.from("konnect_users").select("*")
-          .gt("expires_at", new Date().toISOString())
-          .order("created_at", { ascending: false }),
-        supabase.from("konnect_requests").select("*")
-          .or(`from_session.eq.${me},to_session.eq.${me}`)
-          .gt("expires_at", new Date().toISOString()),
+      const nowIso = new Date().toISOString();
+      const [u, r, g, gr, gm] = await Promise.all([
+        sb.from("konnect_users").select("*").gt("expires_at", nowIso).order("created_at", { ascending: false }),
+        sb.from("konnect_requests").select("*").or(`from_session.eq.${me},to_session.eq.${me}`).gt("expires_at", nowIso),
+        sb.from("konnect_groups").select("*").gt("expires_at", nowIso).order("created_at", { ascending: false }),
+        sb.from("konnect_group_requests").select("*").gt("expires_at", nowIso),
+        sb.from("konnect_group_members").select("*").gt("expires_at", nowIso),
       ]);
-      const list = (u ?? []) as LiveUser[];
+      const list = (u.data ?? []) as LiveUser[];
       const myRow = list.find((x) => x.session_id === me) ?? null;
       setMeRow(myRow);
       if (!myRow) { nav({ to: "/start" }); return; }
       setUsers(list);
-      setRequests((r ?? []) as Req[]);
+      setRequests((r.data ?? []) as Req[]);
+      setGroups((g.data ?? []) as Group[]);
+      setGroupReqs((gr.data ?? []) as GroupReq[]);
+      setGroupMembers((gm.data ?? []) as GroupMember[]);
     };
     load();
 
     const ch = supabase
       .channel("live-stream")
       .on("postgres_changes", { event: "*", schema: "public", table: "konnect_users" }, load)
-      .on("postgres_changes", { event: "*", schema: "public", table: "konnect_requests" }, (payload) => {
+      .on("postgres_changes", { event: "*", schema: "public", table: "konnect_groups" }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "konnect_group_requests" }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "konnect_group_members" }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "konnect_requests" }, (payload: any) => {
         load();
         const n = payload.new as Req | undefined;
         if (n && n.to_session === me && payload.eventType === "INSERT") {
-          toast("New chat request", { description: "Someone wants to connect with you." });
+          toast("New chat request", { description: "Someone wants to connect." });
         }
         if (n && n.from_session === me && payload.eventType === "UPDATE" && n.status === "accepted") {
           toast.success("Request accepted! Chat is open.");
@@ -127,16 +140,13 @@ function LivePage() {
   };
 
   const sendRequest = async (peer: string) => {
-    const { error } = await supabase.from("konnect_requests").upsert(
-      { from_session: me, to_session: peer, status: "pending" },
-      { onConflict: "from_session,to_session" }
-    );
+    const { error } = await sb.from("konnect_requests").insert({ from_session: me, to_session: peer, status: "pending" });
     if (error) return toast.error(error.message);
     toast.success("Request sent");
   };
 
   const respond = async (req: Req, status: "accepted" | "declined") => {
-    const { error } = await supabase.from("konnect_requests").update({ status }).eq("id", req.id);
+    const { error } = await sb.from("konnect_requests").update({ status }).eq("id", req.id);
     if (error) return toast.error(error.message);
     if (status === "accepted") {
       toast.success("Connected — opening chat");
@@ -149,12 +159,45 @@ function LivePage() {
 
   const expiresMs = meRow ? new Date(meRow.expires_at).getTime() - Date.now() : 0;
   const minsLeft = Math.max(0, Math.floor(expiresMs / 60000));
+  const hLeft = Math.floor(minsLeft / 60);
+  const mLeft = minsLeft % 60;
 
   const leave = async () => {
     if (!meRow) return;
-    await supabase.from("konnect_users").delete().eq("session_id", meRow.session_id);
+    await sb.from("konnect_users").delete().eq("session_id", meRow.session_id);
+    clearSession();
     toast.success("You're offline");
     nav({ to: "/" });
+  };
+
+  // Groups helpers
+  const memberCount = (gid: string) => groupMembers.filter((m) => m.group_id === gid).length + 1; // +owner
+  const myGroupReq = (gid: string) => groupReqs.find((r) => r.group_id === gid && r.from_session === me);
+  const isMember = (gid: string) =>
+    groupMembers.some((m) => m.group_id === gid && m.session_id === me) ||
+    groups.some((g) => g.id === gid && g.owner_session === me);
+  const incomingGroupReqs = groupReqs.filter((r) =>
+    r.status === "pending" && groups.some((g) => g.id === r.group_id && g.owner_session === me)
+  );
+
+  const requestJoinGroup = async (gid: string) => {
+    const { error } = await sb.from("konnect_group_requests").insert({ group_id: gid, from_session: me, status: "pending" });
+    if (error) return toast.error(error.message);
+    toast.success("Join request sent");
+  };
+
+  const respondGroupReq = async (req: GroupReq, status: "accepted" | "declined") => {
+    const { error } = await sb.from("konnect_group_requests").update({ status }).eq("id", req.id);
+    if (error) return toast.error(error.message);
+    if (status === "accepted") {
+      const g = groups.find((x) => x.id === req.group_id);
+      if (g && memberCount(g.id) >= g.max_size) {
+        toast.error("Group is full");
+        return;
+      }
+      await sb.from("konnect_group_members").insert({ group_id: req.group_id, session_id: req.from_session });
+      toast.success("Member added");
+    }
   };
 
   if (!meRow) return null;
@@ -164,7 +207,6 @@ function LivePage() {
   return (
     <main className="min-h-screen px-4 py-6 pb-24">
       <div className="mx-auto max-w-6xl">
-        {/* Top bar */}
         <div className="flex items-center justify-between">
           <Link to="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
             <ArrowLeft className="h-4 w-4" /> Home
@@ -174,7 +216,6 @@ function LivePage() {
           </button>
         </div>
 
-        {/* Status header */}
         <div className="mt-5 glass-strong rounded-3xl p-5 md:p-6">
           <div className="flex flex-wrap items-center gap-4">
             <div className="grid h-14 w-14 place-items-center rounded-2xl bg-gradient-gold text-accent-foreground font-display text-xl font-bold">
@@ -184,7 +225,7 @@ function LivePage() {
               <p className="text-xs uppercase tracking-widest text-gold">Live · {eventLabel}</p>
               <h1 className="font-display text-2xl font-bold">Hey {meRow.name}</h1>
               <p className="text-xs text-muted-foreground inline-flex items-center gap-1.5">
-                <Clock className="h-3 w-3" /> expires in {minsLeft}m · {others.length} people {isEventMode ? "in event" : "nearby"}
+                <Clock className="h-3 w-3" /> expires in {hLeft > 0 ? `${hLeft}h ` : ""}{mLeft}m · {others.length} people {isEventMode ? "in event" : "nearby"}
               </p>
             </div>
             <div className="flex items-center gap-2 rounded-full border border-gold/30 bg-card/40 px-3 py-1.5 text-xs text-gold">
@@ -197,30 +238,15 @@ function LivePage() {
           </div>
         </div>
 
-        {/* Tabs: Discover / Inbox */}
-        <div className="mt-5 grid grid-cols-2 gap-2 rounded-2xl bg-card/40 p-1">
-          <button onClick={() => setTab("discover")}
-            className={`inline-flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold transition ${
-              tab === "discover" ? "bg-gradient-royal text-primary-foreground glow-royal" : "text-muted-foreground hover:text-foreground"
-            }`}>
-            <Users className="h-4 w-4" /> Discover
-          </button>
-          <button onClick={() => setTab("inbox")}
-            className={`relative inline-flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold transition ${
-              tab === "inbox" ? "bg-gradient-royal text-primary-foreground glow-royal" : "text-muted-foreground hover:text-foreground"
-            }`}>
-            <Bell className="h-4 w-4" /> Inbox
-            {incomingPending.length > 0 && (
-              <span className="absolute -top-1 -right-1 grid h-5 w-5 place-items-center rounded-full bg-gold text-[10px] font-bold text-accent-foreground">
-                {incomingPending.length}
-              </span>
-            )}
-          </button>
+        {/* Tabs */}
+        <div className="mt-5 grid grid-cols-3 gap-2 rounded-2xl bg-card/40 p-1">
+          <TabBtn active={tab === "discover"} onClick={() => setTab("discover")} icon={<Users className="h-4 w-4" />} label="Discover" />
+          <TabBtn active={tab === "groups"} onClick={() => setTab("groups")} icon={<UserPlus className="h-4 w-4" />} label="Groups" badge={incomingGroupReqs.length || undefined} />
+          <TabBtn active={tab === "inbox"} onClick={() => setTab("inbox")} icon={<Bell className="h-4 w-4" />} label="Inbox" badge={incomingPending.length || undefined} />
         </div>
 
         {tab === "discover" && (
           <>
-            {/* View toggle + search + filters */}
             <div className="mt-4 flex flex-wrap items-center gap-2">
               <div className="relative flex-1 min-w-[200px]">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -252,7 +278,7 @@ function LivePage() {
               ))}
             </div>
 
-            {view === "map" && <MapView me={meRow} others={others as any} requests={requests} sendRequest={sendRequest} reqStatus={reqStatus} nav={nav} />}
+            {view === "map" && <MapView me={meRow} others={others as any} sendRequest={sendRequest} reqStatus={reqStatus} nav={nav} />}
 
             {view === "list" && (
               <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -263,9 +289,7 @@ function LivePage() {
                   </div>
                 )}
                 {others.map((u) => (
-                  <UserCard
-                    key={u.id}
-                    u={u as any}
+                  <UserCard key={u.id} u={u as any}
                     status={reqStatus(u.session_id)}
                     onRequest={() => sendRequest(u.session_id)}
                     onChat={() => nav({ to: "/chat/$peer", params: { peer: u.session_id } })}
@@ -276,6 +300,105 @@ function LivePage() {
           </>
         )}
 
+        {tab === "groups" && (
+          <div className="mt-5">
+            <div className="flex items-center justify-between">
+              <h2 className="font-display text-lg font-semibold">Groups</h2>
+              <button onClick={() => setShowCreate(true)}
+                className="inline-flex items-center gap-2 rounded-full bg-gradient-gold px-4 py-2 text-sm font-semibold text-accent-foreground glow-gold transition hover:scale-[1.02]">
+                <Plus className="h-4 w-4" /> Create Group
+              </button>
+            </div>
+
+            {/* incoming join requests for groups I own */}
+            {incomingGroupReqs.length > 0 && (
+              <section className="mt-5">
+                <h3 className="mb-2 text-xs uppercase tracking-widest text-gold">Join requests</h3>
+                <div className="grid gap-2 md:grid-cols-2">
+                  {incomingGroupReqs.map((r) => {
+                    const u = users.find((x) => x.session_id === r.from_session);
+                    const g = groups.find((x) => x.id === r.group_id);
+                    if (!u || !g) return null;
+                    return (
+                      <div key={r.id} className="glass rounded-2xl p-3">
+                        <div className="flex items-center gap-3">
+                          <div className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-royal font-bold text-primary-foreground">
+                            {u.name[0]?.toUpperCase()}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold truncate">{u.name} → {g.name}</p>
+                            <p className="text-[11px] text-muted-foreground">{memberCount(g.id)}/{g.max_size} members</p>
+                          </div>
+                          <button onClick={() => respondGroupReq(r, "declined")}
+                            className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:text-destructive">
+                            <X className="h-4 w-4" />
+                          </button>
+                          <button onClick={() => respondGroupReq(r, "accepted")}
+                            className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-gold text-accent-foreground">
+                            <Check className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {groups.length === 0 && (
+                <div className="col-span-full glass rounded-2xl p-8 text-center text-sm text-muted-foreground">
+                  <UserPlus className="mx-auto mb-3 h-6 w-6 text-gold" />
+                  No active groups. Be the first to create one.
+                </div>
+              )}
+              {groups.map((g) => {
+                const owner = users.find((u) => u.session_id === g.owner_session);
+                const km = distKm({ lat: meRow.location_lat, lng: meRow.location_lng }, { lat: g.location_lat, lng: g.location_lng });
+                const mine = g.owner_session === me;
+                const member = isMember(g.id);
+                const myr = myGroupReq(g.id);
+                const full = memberCount(g.id) >= g.max_size;
+                return (
+                  <div key={g.id} className="glass rounded-2xl p-4 transition hover:-translate-y-1 hover:glow-royal">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-[10px] uppercase tracking-widest text-gold">{g.event_type}</p>
+                        <h3 className="font-display text-base font-semibold truncate">{g.name}</h3>
+                      </div>
+                      {mine && <Crown className="h-4 w-4 text-gold shrink-0" />}
+                    </div>
+                    {g.description && <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{g.description}</p>}
+                    <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
+                      <span className="inline-flex items-center gap-1"><Users className="h-3 w-3" /> {memberCount(g.id)}/{g.max_size}</span>
+                      <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" /> {km < 0.1 ? "Same spot" : `${km.toFixed(1)} km`}</span>
+                      {owner && <span>by {owner.name}</span>}
+                    </div>
+                    <div className="mt-3">
+                      {mine ? (
+                        <span className="inline-block rounded-full border border-gold/30 bg-gold/10 px-3 py-1.5 text-xs text-gold">You're the host</span>
+                      ) : member ? (
+                        <span className="inline-block rounded-full border border-emerald-400/40 bg-emerald-400/10 px-3 py-1.5 text-xs text-emerald-300">Member</span>
+                      ) : myr?.status === "pending" ? (
+                        <span className="inline-block rounded-full border border-gold/30 bg-card/40 px-3 py-1.5 text-xs text-gold">Request pending…</span>
+                      ) : myr?.status === "declined" ? (
+                        <span className="inline-block rounded-full border border-border bg-card/40 px-3 py-1.5 text-xs text-muted-foreground">Declined</span>
+                      ) : full ? (
+                        <span className="inline-block rounded-full border border-border bg-card/40 px-3 py-1.5 text-xs text-muted-foreground">Full</span>
+                      ) : (
+                        <button onClick={() => requestJoinGroup(g.id)}
+                          className="inline-flex items-center gap-2 rounded-full bg-gradient-royal px-4 py-1.5 text-xs font-semibold text-primary-foreground glow-royal transition hover:scale-[1.02]">
+                          <Send className="h-3 w-3" /> Request to Join
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {tab === "inbox" && (
           <div className="mt-6 grid gap-6 md:grid-cols-2">
             <section>
@@ -284,9 +407,7 @@ function LivePage() {
               </h2>
               <div className="space-y-2">
                 {incomingPending.length === 0 && (
-                  <div className="glass rounded-2xl p-6 text-center text-sm text-muted-foreground">
-                    No incoming requests.
-                  </div>
+                  <div className="glass rounded-2xl p-6 text-center text-sm text-muted-foreground">No incoming requests.</div>
                 )}
                 {incomingPending.map((r) => {
                   const u = users.find((x) => x.session_id === r.from_session);
@@ -322,9 +443,7 @@ function LivePage() {
               </h2>
               <div className="space-y-2">
                 {acceptedPeers.length === 0 && (
-                  <div className="glass rounded-2xl p-6 text-center text-sm text-muted-foreground">
-                    No open chats yet. Send a request from Discover.
-                  </div>
+                  <div className="glass rounded-2xl p-6 text-center text-sm text-muted-foreground">No open chats yet.</div>
                 )}
                 {acceptedPeers.map((r) => {
                   const peerId = r.from_session === me ? r.to_session : r.from_session;
@@ -345,7 +464,6 @@ function LivePage() {
                   );
                 })}
 
-                {/* Outgoing pending */}
                 {requests.filter((r) => r.from_session === me && r.status === "pending").map((r) => {
                   const u = users.find((x) => x.session_id === r.to_session);
                   if (!u) return null;
@@ -362,37 +480,131 @@ function LivePage() {
           </div>
         )}
       </div>
+
+      {showCreate && (
+        <CreateGroupDialog me={meRow} onClose={() => setShowCreate(false)} />
+      )}
     </main>
+  );
+}
+
+function TabBtn({ active, onClick, icon, label, badge }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string; badge?: number }) {
+  return (
+    <button onClick={onClick}
+      className={`relative inline-flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold transition ${
+        active ? "bg-gradient-royal text-primary-foreground glow-royal" : "text-muted-foreground hover:text-foreground"
+      }`}>
+      {icon} {label}
+      {badge ? (
+        <span className="absolute -top-1 -right-1 grid h-5 w-5 place-items-center rounded-full bg-gold text-[10px] font-bold text-accent-foreground">
+          {badge}
+        </span>
+      ) : null}
+    </button>
+  );
+}
+
+const EVENT_TYPES = [
+  "College Fest", "Concert / DJ Night", "Club / Nightlife",
+  "Tech Event / Hackathon", "Exhibition / Conference",
+  "Marriage / Wedding", "Birthday Party", "House Party",
+  "Travel Buddy", "Custom",
+];
+
+function CreateGroupDialog({ me, onClose }: { me: LiveUser; onClose: () => void }) {
+  const [name, setName] = useState("");
+  const [eventType, setEventType] = useState("College Fest");
+  const [description, setDescription] = useState("");
+  const [maxSize, setMaxSize] = useState(10);
+  const [saving, setSaving] = useState(false);
+
+  const create = async () => {
+    if (!name.trim()) return toast.error("Group name required");
+    if (maxSize < 2 || maxSize > 100) return toast.error("Size must be 2–100");
+    setSaving(true);
+    const { error } = await sb.from("konnect_groups").insert({
+      owner_session: me.session_id,
+      name: name.trim().slice(0, 60),
+      event_type: eventType,
+      mode: me.mode,
+      location_name: me.location_name,
+      location_lat: me.location_lat,
+      location_lng: me.location_lng,
+      max_size: maxSize,
+      description: description.trim().slice(0, 200) || null,
+      expires_at: me.expires_at,
+    });
+    setSaving(false);
+    if (error) return toast.error(error.message);
+    toast.success("Group created");
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-background/80 backdrop-blur p-4" onClick={onClose}>
+      <div className="w-full max-w-md glass-strong rounded-3xl p-6 animate-float-up" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h2 className="font-display text-xl font-bold">Create Group</h2>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
+        </div>
+
+        <label className="mt-4 block text-xs uppercase tracking-widest text-gold">Type</label>
+        <select value={eventType} onChange={(e) => setEventType(e.target.value)}
+          className="mt-1.5 w-full rounded-xl border border-border bg-card/40 px-3 py-2.5 text-sm outline-none focus:border-gold">
+          {EVENT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+        </select>
+
+        <label className="mt-4 block text-xs uppercase tracking-widest text-gold">Group name</label>
+        <input value={name} onChange={(e) => setName(e.target.value)} maxLength={60}
+          placeholder="e.g. Hackathon Team Alpha"
+          className="mt-1.5 w-full rounded-xl border border-border bg-card/40 px-3 py-2.5 text-sm outline-none focus:border-gold" />
+
+        <label className="mt-4 block text-xs uppercase tracking-widest text-gold">Description (optional)</label>
+        <textarea value={description} onChange={(e) => setDescription(e.target.value)} maxLength={200} rows={2}
+          placeholder="What's the vibe? What are you looking for?"
+          className="mt-1.5 w-full rounded-xl border border-border bg-card/40 px-3 py-2.5 text-sm outline-none focus:border-gold" />
+
+        <label className="mt-4 block text-xs uppercase tracking-widest text-gold">Group size (2 – 100)</label>
+        <div className="mt-1.5 flex items-center gap-3">
+          <input type="range" min={2} max={100} value={maxSize} onChange={(e) => setMaxSize(parseInt(e.target.value))}
+            className="flex-1 accent-[var(--gold)]" />
+          <span className="w-12 rounded-lg border border-gold/30 bg-card/40 text-center py-1 text-sm font-semibold text-gold">{maxSize}</span>
+        </div>
+
+        <button onClick={create} disabled={saving}
+          className="mt-6 w-full rounded-2xl px-6 py-3 font-display text-base font-bold transition hover:scale-[1.01] disabled:opacity-60"
+          style={{
+            background: "linear-gradient(135deg, color-mix(in oklab, var(--gold) 92%, white 30%), color-mix(in oklab, white 70%, var(--gold) 30%), color-mix(in oklab, var(--gold) 88%, white 25%))",
+            color: "#1a1408",
+            boxShadow: "0 10px 30px -8px color-mix(in oklab, var(--gold) 45%, transparent)",
+          }}>
+          {saving ? "Creating…" : "Create Group"}
+        </button>
+      </div>
+    </div>
   );
 }
 
 /* ---------- Map View ---------- */
 
 function MapView({
-  me, others, requests, sendRequest, reqStatus, nav,
+  me, others, sendRequest, reqStatus, nav,
 }: {
   me: LiveUser;
   others: (LiveUser & { _km: number })[];
-  requests: Req[];
   sendRequest: (peer: string) => void;
   reqStatus: (peer: string) => "none" | "sent" | "incoming" | "accepted" | "declined";
   nav: ReturnType<typeof useNavigate>;
 }) {
   const [selected, setSelected] = useState<string | null>(null);
-  // dynamic max radius based on farthest person, min 1km, max 10km
   const maxKm = Math.min(10, Math.max(1, Math.ceil((others[others.length - 1]?._km ?? 1) * 1.1)));
-
   const sel = others.find((o) => o.session_id === selected);
 
   return (
     <div className="mt-4">
       <div className="relative overflow-hidden rounded-3xl border border-gold/20 glass-strong">
-        {/* Map area */}
         <div className="relative h-[420px] sm:h-[520px] grid-bg">
-          {/* radar sweep */}
           <div className="absolute inset-0 radar-sweep opacity-25" />
-
-          {/* distance rings */}
           {[0.33, 0.66, 1].map((p, i) => (
             <div key={i} className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-gold/20"
               style={{ width: `${p * 80}%`, height: `${p * 80}%` }}>
@@ -401,24 +613,15 @@ function MapView({
               </span>
             </div>
           ))}
-
-          {/* compass */}
-          <div className="absolute top-3 right-3 grid h-9 w-9 place-items-center rounded-full border border-gold/30 bg-background/60 text-[10px] text-gold backdrop-blur">
-            N
-          </div>
-
-          {/* "you" marker */}
+          <div className="absolute top-3 right-3 grid h-9 w-9 place-items-center rounded-full border border-gold/30 bg-background/60 text-[10px] text-gold backdrop-blur">N</div>
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
             <div className="grid h-12 w-12 place-items-center rounded-full bg-gradient-gold text-accent-foreground font-bold ring-pulse glow-gold">
               {me.name[0]?.toUpperCase()}
             </div>
           </div>
-
-          {/* others */}
           {others.slice(0, 60).map((u) => {
             const km = Math.min(maxKm, u._km || 0.05);
-            const r = (km / maxKm) * 38; // % of container half
-            // deterministic pseudo-angle per id to spread out
+            const r = (km / maxKm) * 38;
             const angle = (parseInt(u.id.slice(0, 8), 16) % 360) * (Math.PI / 180);
             const x = 50 + Math.cos(angle) * r;
             const y = 50 + Math.sin(angle) * r;
@@ -430,41 +633,32 @@ function MapView({
               : "bg-primary glow-royal";
             const isSel = selected === u.session_id;
             return (
-              <button key={u.id}
-                onClick={() => setSelected(isSel ? null : u.session_id)}
+              <button key={u.id} onClick={() => setSelected(isSel ? null : u.session_id)}
                 title={`${u.name} · ${km.toFixed(2)} km`}
                 className={`absolute -translate-x-1/2 -translate-y-1/2 transition ${isSel ? "z-20 scale-125" : "z-10 hover:scale-125"}`}
-                style={{ left: `${x}%`, top: `${y}%` }}
-              >
+                style={{ left: `${x}%`, top: `${y}%` }}>
                 <div className={`grid h-9 w-9 place-items-center rounded-full text-[11px] font-bold text-primary-foreground ring-pulse ${color}`}>
                   {u.name[0]?.toUpperCase()}
                 </div>
                 {(isSel || others.length < 8) && (
-                  <span className="mt-1 block rounded-full bg-background/80 px-1.5 py-0.5 text-[10px] text-foreground backdrop-blur">
-                    {u.name}
-                  </span>
+                  <span className="mt-1 block rounded-full bg-background/80 px-1.5 py-0.5 text-[10px] text-foreground backdrop-blur">{u.name}</span>
                 )}
               </button>
             );
           })}
         </div>
-
-        {/* Legend */}
         <div className="flex flex-wrap items-center gap-3 border-t border-border/60 px-4 py-2 text-[11px] text-muted-foreground">
           <Legend color="bg-gold" label="You" />
           <Legend color="bg-primary" label="Available" />
           <Legend color="bg-yellow-400/80" label="Request sent" />
           <Legend color="bg-emerald-400" label="Wants to connect" />
-          <Legend color="bg-gold" label="Connected" />
           <span className="ml-auto">Tap a dot to view profile</span>
         </div>
       </div>
 
-      {/* Selected user popover */}
       {sel && (
         <div className="mt-4 animate-float-up">
-          <UserCard
-            u={sel}
+          <UserCard u={sel}
             status={reqStatus(sel.session_id)}
             onRequest={() => sendRequest(sel.session_id)}
             onChat={() => nav({ to: "/chat/$peer", params: { peer: sel.session_id } })}
@@ -482,8 +676,6 @@ function Legend({ color, label }: { color: string; label: string }) {
     </span>
   );
 }
-
-/* ---------- User Card ---------- */
 
 function UserCard({
   u, status, onRequest, onChat,
