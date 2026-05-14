@@ -1,8 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getSessionId } from "@/lib/session";
-import { ArrowLeft, Send, Hand, ThumbsUp, Eye, MessageCircle } from "lucide-react";
+import { ArrowLeft, Send, MessageCircle, MapPin, Lock } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/chat/$peer")({
@@ -23,18 +23,52 @@ type Peer = {
   name: string;
   age: number | null;
   skills: string | null;
+  location_lat: number;
+  location_lng: number;
 };
 
+type Me = {
+  session_id: string;
+  location_lat: number;
+  location_lng: number;
+};
+
+// Curated gestures grouped — Founder/CEO + Public Speaking presets.
 const GESTURES = [
-  { kind: "gesture-peace", emoji: "✌️", label: "Two fingers" },
-  { kind: "gesture-thumb", emoji: "👍", label: "Good vibes" },
-  { kind: "gesture-eye", emoji: "👀", label: "I see you" },
+  // Founder / CEO
+  { kind: "g-steeple", emoji: "🤲", label: "Steeple" },
+  { kind: "g-pinch", emoji: "🤌", label: "Precision pinch" },
+  { kind: "g-clap", emoji: "👏", label: "Applause" },
+  { kind: "g-thinker", emoji: "🤔", label: "Thinking" },
+  { kind: "g-point", emoji: "👉", label: "Controlled point" },
+  { kind: "g-deal", emoji: "🤝", label: "Deal-making" },
+  { kind: "g-power", emoji: "💪", label: "Power pose" },
+  { kind: "g-fold", emoji: "🙏", label: "Calm fold" },
+  // Event / Public Speaking
+  { kind: "g-wave", emoji: "👋", label: "Greeting wave" },
+  { kind: "g-open", emoji: "🤗", label: "Open arms" },
+  { kind: "g-thumbs", emoji: "👍", label: "Thumbs up" },
+  { kind: "g-peace", emoji: "✌️", label: "Peace" },
+  { kind: "g-heart", emoji: "🫶", label: "Heart hands" },
+  { kind: "g-victory", emoji: "🏆", label: "Victory" },
+  { kind: "g-spark", emoji: "✨", label: "Vision" },
+  { kind: "g-mic", emoji: "🎤", label: "Keynote" },
 ];
+
+const CHAT_RADIUS_KM = 1.0; // Chat unlocks only when both are within 1 km
+
+function distKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
+  const R = 6371, toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat), dLng = toRad(b.lng - a.lng);
+  const x = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(x));
+}
 
 function ChatPage() {
   const { peer } = Route.useParams();
   const nav = useNavigate();
   const me = getSessionId();
+  const [meRow, setMeRow] = useState<Me | null>(null);
   const [peerInfo, setPeerInfo] = useState<Peer | null>(null);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [text, setText] = useState("");
@@ -43,8 +77,9 @@ function ChatPage() {
 
   useEffect(() => {
     const load = async () => {
-      const [{ data: p }, { data: req }, { data: m }] = await Promise.all([
-        supabase.from("konnect_users").select("session_id,name,age,skills").eq("session_id", peer).maybeSingle(),
+      const [{ data: p }, { data: meData }, { data: req }, { data: m }] = await Promise.all([
+        supabase.from("konnect_users").select("session_id,name,age,skills,location_lat,location_lng").eq("session_id", peer).maybeSingle(),
+        supabase.from("konnect_users").select("session_id,location_lat,location_lng").eq("session_id", me).maybeSingle(),
         supabase.from("konnect_requests").select("status,from_session,to_session")
           .or(`and(from_session.eq.${me},to_session.eq.${peer}),and(from_session.eq.${peer},to_session.eq.${me})`)
           .gt("expires_at", new Date().toISOString())
@@ -54,6 +89,7 @@ function ChatPage() {
           .order("created_at", { ascending: true }),
       ]);
       if (p) setPeerInfo(p as Peer);
+      if (meData) setMeRow(meData as Me);
       setMsgs((m ?? []) as Msg[]);
       setAllowed(req && (req as any).status === "accepted" ? "yes" : "no");
     };
@@ -70,6 +106,7 @@ function ChatPage() {
         }
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "konnect_requests" }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "konnect_users" }, load)
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [me, peer]);
@@ -78,9 +115,17 @@ function ChatPage() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [msgs.length]);
 
+  const km = useMemo(() => {
+    if (!meRow || !peerInfo) return null;
+    return distKm({ lat: meRow.location_lat, lng: meRow.location_lng }, { lat: peerInfo.location_lat, lng: peerInfo.location_lng });
+  }, [meRow, peerInfo]);
+
+  const inRange = km !== null && km <= CHAT_RADIUS_KM;
+
   const send = async (content: string, kind = "text") => {
     if (!content.trim()) return;
     if (allowed !== "yes") { toast.error("You need an accepted request to chat."); return; }
+    if (!inRange) { toast.error(`You must be within ${CHAT_RADIUS_KM} km to chat.`); return; }
     const { error } = await supabase.from("konnect_messages").insert({
       from_session: me, to_session: peer, content: content.slice(0, 500), kind,
     });
@@ -99,8 +144,7 @@ function ChatPage() {
           <p className="mt-1 text-sm text-muted-foreground">
             Send a connection request first. Once they accept, your chat opens here.
           </p>
-          <button onClick={() => nav({ to: "/live" })}
-            className="mt-6 inline-flex items-center gap-2 rounded-full bg-gradient-royal px-5 py-2.5 text-sm font-semibold text-primary-foreground glow-royal">
+          <button onClick={() => nav({ to: "/live" })} className="btn-gw mt-6 inline-flex items-center gap-2 px-5 py-2.5 text-sm">
             Back to Discover
           </button>
         </div>
@@ -110,7 +154,6 @@ function ChatPage() {
 
   return (
     <main className="flex min-h-screen flex-col">
-      {/* Header */}
       <header className="sticky top-0 z-20 border-b border-border/60 bg-background/80 px-4 py-3 backdrop-blur">
         <div className="mx-auto flex max-w-2xl items-center gap-3">
           <button onClick={() => nav({ to: "/live" })} className="rounded-full p-2 text-muted-foreground hover:text-foreground">
@@ -121,22 +164,36 @@ function ChatPage() {
           </div>
           <div className="flex-1">
             <h2 className="font-display text-base font-semibold leading-none">{peerInfo?.name ?? "Stranger"}</h2>
-            <p className="text-[11px] text-muted-foreground">{peerInfo?.skills ?? "live · vanishes in 2h"}</p>
+            <p className="text-[11px] text-muted-foreground inline-flex items-center gap-1">
+              <MapPin className="h-3 w-3" />
+              {km === null ? "locating…" : km < 0.05 ? "Same spot" : `${km.toFixed(2)} km away`}
+            </p>
           </div>
-          <span className="rounded-full border border-gold/30 bg-card/40 px-2 py-1 text-[10px] text-gold">live</span>
+          <span className={`rounded-full border px-2 py-1 text-[10px] ${inRange ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-300" : "border-gold/30 bg-card/40 text-gold"}`}>
+            {inRange ? "in range" : "too far"}
+          </span>
         </div>
       </header>
 
-      {/* Messages */}
+      {!inRange && km !== null && (
+        <div className="mx-auto mt-3 w-full max-w-2xl px-4">
+          <div className="glass rounded-2xl p-4 text-center text-sm">
+            <Lock className="mx-auto mb-2 h-4 w-4 text-gold" />
+            You need to be within <span className="text-gold font-semibold">{CHAT_RADIUS_KM} km</span> of {peerInfo?.name ?? "your match"} to chat.
+            Currently <span className="text-gold font-semibold">{km.toFixed(2)} km</span> apart — get closer to unlock.
+          </div>
+        </div>
+      )}
+
       <div ref={scrollRef} className="mx-auto w-full max-w-2xl flex-1 overflow-y-auto px-4 py-6 space-y-3">
-        {msgs.length === 0 && (
+        {msgs.length === 0 && inRange && (
           <div className="mt-10 text-center text-sm text-muted-foreground">
             Say hi. Send a ✌️ when you find each other in real life.
           </div>
         )}
         {msgs.map((m) => {
           const mine = m.from_session === me;
-          const isGesture = m.kind.startsWith("gesture-");
+          const isGesture = m.kind.startsWith("g-") || m.kind.startsWith("gesture-");
           if (isGesture) {
             return (
               <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"} animate-float-up`}>
@@ -147,9 +204,7 @@ function ChatPage() {
           return (
             <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"} animate-float-up`}>
               <div className={`max-w-[78%] rounded-2xl px-4 py-2.5 text-sm ${
-                mine
-                  ? "bg-gradient-royal text-primary-foreground rounded-br-sm"
-                  : "glass text-foreground rounded-bl-sm"
+                mine ? "bg-gradient-royal text-primary-foreground rounded-br-sm" : "glass text-foreground rounded-bl-sm"
               }`}>
                 {m.content}
               </div>
@@ -158,14 +213,14 @@ function ChatPage() {
         })}
       </div>
 
-      {/* Composer */}
       <div className="sticky bottom-0 border-t border-border/60 bg-background/80 px-4 py-3 backdrop-blur">
         <div className="mx-auto max-w-2xl space-y-2">
-          <div className="flex justify-center gap-2">
+          <div className="flex gap-2 overflow-x-auto pb-1">
             {GESTURES.map((g) => (
               <button key={g.kind} onClick={() => send(g.emoji, g.kind)}
+                disabled={!inRange}
                 title={g.label}
-                className="grid h-12 w-12 place-items-center rounded-2xl border border-gold/30 bg-card/40 text-2xl transition hover:scale-110 hover:bg-gold/10">
+                className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-gold/30 bg-card/40 text-2xl transition hover:scale-110 hover:bg-gold/10 disabled:opacity-40 disabled:hover:scale-100">
                 {g.emoji}
               </button>
             ))}
@@ -174,17 +229,18 @@ function ChatPage() {
             <input
               value={text}
               onChange={(e) => setText(e.target.value)}
-              placeholder="Type a message..."
+              placeholder={inRange ? "Type a message..." : "Get within 1 km to chat"}
               maxLength={500}
-              className="flex-1 rounded-full border border-border bg-card/60 px-4 py-3 text-sm outline-none focus:border-gold"
+              disabled={!inRange}
+              className="flex-1 rounded-full border border-border bg-card/60 px-4 py-3 text-sm outline-none focus:border-gold disabled:opacity-50"
             />
-            <button type="submit"
-              className="grid h-11 w-11 place-items-center rounded-full bg-gradient-gold text-accent-foreground glow-gold transition hover:scale-105">
+            <button type="submit" disabled={!inRange}
+              className="btn-gw grid h-11 w-11 place-items-center !rounded-full">
               <Send className="h-4 w-4" />
             </button>
           </form>
           <p className="text-center text-[10px] text-muted-foreground">
-            Chats vanish with your profile in 2 hours.
+            Chats vanish with your profile. Stay within {CHAT_RADIUS_KM} km to keep chatting.
           </p>
         </div>
       </div>
@@ -192,5 +248,4 @@ function ChatPage() {
   );
 }
 
-// avoid unused import lints
-void Hand; void ThumbsUp; void Eye; void Link;
+void Link;
