@@ -45,7 +45,9 @@ export type Database = {
           from_session: string
           group_id: string
           id: string
+          kind: string
           status: string
+          to_session: string | null
         }
         Insert: {
           created_at?: string
@@ -53,7 +55,9 @@ export type Database = {
           from_session: string
           group_id: string
           id?: string
+          kind?: string
           status?: string
+          to_session?: string | null
         }
         Update: {
           created_at?: string
@@ -61,7 +65,9 @@ export type Database = {
           from_session?: string
           group_id?: string
           id?: string
+          kind?: string
           status?: string
+          to_session?: string | null
         }
         Relationships: []
       }

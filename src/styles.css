@@ -245,3 +245,22 @@
   .btn-luxe:hover { transform: translateY(-1px); filter: brightness(1.05); }
   .btn-luxe:active { transform: translateY(0) scale(0.99); }
 }
+
+@layer components {
+  .btn-gw {
+    background: linear-gradient(135deg,
+      color-mix(in oklab, var(--gold) 92%, white 30%) 0%,
+      color-mix(in oklab, white 70%, var(--gold) 30%) 50%,
+      color-mix(in oklab, var(--gold) 88%, white 25%) 100%);
+    color: #1a1408;
+    border: 1px solid color-mix(in oklab, var(--gold) 50%, white 20%);
+    border-radius: 0.875rem;
+    font-weight: 700;
+    box-shadow:
+      0 10px 30px -8px color-mix(in oklab, var(--gold) 45%, transparent),
+      inset 0 1px 0 rgba(255,255,255,0.6);
+    transition: transform 150ms, filter 150ms;
+  }
+  .btn-gw:hover { filter: brightness(1.05); transform: scale(1.02); }
+  .btn-gw:disabled { opacity: 0.6; }
+}

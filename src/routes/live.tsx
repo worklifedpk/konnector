@@ -3,10 +3,18 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getSessionId, clearSession } from "@/lib/session";
 import {
-  ArrowLeft, MessageCircle, MapPin, Users, Search, LogOut, Instagram,
+  ArrowLeft, MessageCircle, MapPin, Users, Search, LogOut, Link2, Mail,
   Map as MapIcon, List, Bell, Check, X, Send, Clock, Plus, UserPlus, Crown,
 } from "lucide-react";
 import { toast } from "sonner";
+
+// Normalize a free-form social handle (or URL) to a clickable URL.
+function socialUrl(s: string): string {
+  const v = s.trim();
+  if (/^https?:\/\//i.test(v)) return v;
+  if (v.startsWith("@")) return `https://instagram.com/${v.slice(1)}`;
+  return `https://${v}`;
+}
 
 export const Route = createFileRoute("/live")({ component: LivePage });
 
@@ -17,7 +25,7 @@ type LiveUser = {
   age: number | null; gender: string | null;
   intent: string; mode: string;
   location_name: string | null; location_lat: number; location_lng: number;
-  skills: string | null; instagram: string | null;
+  skills: string | null; instagram: string | null; email: string | null;
   interests: string[] | null; expires_at: string;
 };
 
@@ -35,6 +43,7 @@ type Group = {
 
 type GroupReq = {
   id: string; group_id: string; from_session: string;
+  to_session: string | null; kind: "join" | "invite";
   status: "pending" | "accepted" | "declined";
 };
 
@@ -172,18 +181,32 @@ function LivePage() {
 
   // Groups helpers
   const memberCount = (gid: string) => groupMembers.filter((m) => m.group_id === gid).length + 1; // +owner
-  const myGroupReq = (gid: string) => groupReqs.find((r) => r.group_id === gid && r.from_session === me);
+  const myGroupReq = (gid: string) => groupReqs.find((r) => r.group_id === gid && r.from_session === me && r.kind === "join");
   const isMember = (gid: string) =>
     groupMembers.some((m) => m.group_id === gid && m.session_id === me) ||
     groups.some((g) => g.id === gid && g.owner_session === me);
+  const myOwnedGroups = groups.filter((g) => g.owner_session === me);
   const incomingGroupReqs = groupReqs.filter((r) =>
-    r.status === "pending" && groups.some((g) => g.id === r.group_id && g.owner_session === me)
+    r.status === "pending" && r.kind === "join" &&
+    groups.some((g) => g.id === r.group_id && g.owner_session === me)
+  );
+  const incomingInvites = groupReqs.filter((r) =>
+    r.status === "pending" && r.kind === "invite" && r.to_session === me
   );
 
   const requestJoinGroup = async (gid: string) => {
-    const { error } = await sb.from("konnect_group_requests").insert({ group_id: gid, from_session: me, status: "pending" });
+    const { error } = await sb.from("konnect_group_requests").insert({ group_id: gid, from_session: me, kind: "join", status: "pending" });
     if (error) return toast.error(error.message);
     toast.success("Join request sent");
+  };
+
+  const inviteToGroup = async (gid: string, peer: string) => {
+    // prevent duplicates
+    const dup = groupReqs.find((r) => r.group_id === gid && r.to_session === peer && r.kind === "invite" && r.status !== "declined");
+    if (dup) return toast("Already invited");
+    const { error } = await sb.from("konnect_group_requests").insert({ group_id: gid, from_session: me, to_session: peer, kind: "invite", status: "pending" });
+    if (error) return toast.error(error.message);
+    toast.success("Invite sent");
   };
 
   const respondGroupReq = async (req: GroupReq, status: "accepted" | "declined") => {
@@ -195,8 +218,10 @@ function LivePage() {
         toast.error("Group is full");
         return;
       }
-      await sb.from("konnect_group_members").insert({ group_id: req.group_id, session_id: req.from_session });
-      toast.success("Member added");
+      // For invites the joining session is to_session; for join requests it's from_session
+      const joinerSession = req.kind === "invite" ? (req.to_session ?? me) : req.from_session;
+      await sb.from("konnect_group_members").insert({ group_id: req.group_id, session_id: joinerSession });
+      toast.success(req.kind === "invite" ? "Joined group" : "Member added");
     }
   };
 
@@ -293,6 +318,11 @@ function LivePage() {
                     status={reqStatus(u.session_id)}
                     onRequest={() => sendRequest(u.session_id)}
                     onChat={() => nav({ to: "/chat/$peer", params: { peer: u.session_id } })}
+                    canInvite={myOwnedGroups.length > 0}
+                    onInvite={() => {
+                      const g = myOwnedGroups[0];
+                      if (g) inviteToGroup(g.id, u.session_id);
+                    }}
                   />
                 ))}
               </div>
@@ -401,6 +431,33 @@ function LivePage() {
 
         {tab === "inbox" && (
           <div className="mt-6 grid gap-6 md:grid-cols-2">
+            {incomingInvites.length > 0 && (
+              <section className="md:col-span-2">
+                <h2 className="mb-3 font-display text-sm uppercase tracking-widest text-gold">
+                  Group invites ({incomingInvites.length})
+                </h2>
+                <div className="grid gap-2 md:grid-cols-2">
+                  {incomingInvites.map((r) => {
+                    const g = groups.find((x) => x.id === r.group_id);
+                    const owner = g ? users.find((u) => u.session_id === g.owner_session) : null;
+                    if (!g) return null;
+                    return (
+                      <div key={r.id} className="glass rounded-2xl p-3">
+                        <div className="flex items-center gap-3">
+                          <div className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-gold text-accent-foreground"><Crown className="h-4 w-4" /></div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold truncate">Invite to {g.name}</p>
+                            <p className="text-[11px] text-muted-foreground">from {owner?.name ?? "host"} · {memberCount(g.id)}/{g.max_size}</p>
+                          </div>
+                          <button onClick={() => respondGroupReq(r, "declined")} className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:text-destructive"><X className="h-4 w-4" /></button>
+                          <button onClick={() => respondGroupReq(r, "accepted")} className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-gold text-accent-foreground"><Check className="h-4 w-4" /></button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
             <section>
               <h2 className="mb-3 font-display text-sm uppercase tracking-widest text-gold">
                 Requests for you ({incomingPending.length})
@@ -678,12 +735,14 @@ function Legend({ color, label }: { color: string; label: string }) {
 }
 
 function UserCard({
-  u, status, onRequest, onChat,
+  u, status, onRequest, onChat, onInvite, canInvite,
 }: {
   u: LiveUser & { _km: number };
   status: "none" | "sent" | "incoming" | "accepted" | "declined";
   onRequest: () => void;
   onChat: () => void;
+  onInvite?: () => void;
+  canInvite?: boolean;
 }) {
   return (
     <div className="glass rounded-2xl p-4 transition hover:-translate-y-1 hover:glow-royal">
@@ -698,8 +757,19 @@ function UserCard({
           </div>
           <p className="truncate text-xs text-muted-foreground">{u.skills || u.gender || "Available now"}</p>
           <div className="mt-1 flex items-center gap-2 text-xs text-gold">
-            <MapPin className="h-3 w-3" /> {u._km < 0.1 ? "Same spot" : `${u._km.toFixed(1)} km away`}
+            <MapPin className="h-3 w-3" /> {u._km < 0.1 ? "Same spot" : `${u._km.toFixed(2)} km away`}
           </div>
+          {u.email && (
+            <a href={`mailto:${u.email}`} className="mt-1 flex items-center gap-1.5 truncate text-[11px] text-muted-foreground hover:text-foreground">
+              <Mail className="h-3 w-3 text-gold" /> {u.email}
+            </a>
+          )}
+          {u.instagram && (
+            <a href={socialUrl(u.instagram)} target="_blank" rel="noreferrer"
+              className="mt-1 flex items-center gap-1.5 truncate text-[11px] text-muted-foreground hover:text-foreground">
+              <Link2 className="h-3 w-3 text-gold" /> {u.instagram.replace(/^https?:\/\//, "")}
+            </a>
+          )}
         </div>
       </div>
       {u.interests && u.interests.length > 0 && (
@@ -709,14 +779,14 @@ function UserCard({
           ))}
         </div>
       )}
-      <div className="mt-4 flex gap-2">
+      <div className="mt-4 flex flex-wrap gap-2">
         {status === "accepted" && (
-          <button onClick={onChat} className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-royal px-3 py-2 text-sm font-semibold text-primary-foreground transition hover:scale-[1.02]">
+          <button onClick={onChat} className="flex-1 btn-gw inline-flex items-center justify-center gap-2 px-3 py-2 text-sm">
             <MessageCircle className="h-4 w-4" /> Open Chat
           </button>
         )}
         {status === "none" && (
-          <button onClick={onRequest} className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-gold px-3 py-2 text-sm font-semibold text-accent-foreground glow-gold transition hover:scale-[1.02]">
+          <button onClick={onRequest} className="flex-1 btn-gw inline-flex items-center justify-center gap-2 px-3 py-2 text-sm">
             <Send className="h-4 w-4" /> Send Request
           </button>
         )}
@@ -735,13 +805,14 @@ function UserCard({
             Declined
           </button>
         )}
-        {u.instagram && (
-          <a href={`https://instagram.com/${u.instagram}`} target="_blank" rel="noreferrer"
-            className="inline-flex items-center justify-center rounded-xl border border-border bg-card/40 px-3 py-2 text-muted-foreground hover:text-foreground">
-            <Instagram className="h-4 w-4" />
-          </a>
+        {canInvite && onInvite && (
+          <button onClick={onInvite} title="Invite to your group"
+            className="inline-flex items-center justify-center gap-1 rounded-xl border border-gold/40 bg-card/40 px-3 py-2 text-xs font-semibold text-gold hover:bg-gold/10">
+            <UserPlus className="h-3.5 w-3.5" /> Invite
+          </button>
         )}
       </div>
     </div>
   );
 }
+

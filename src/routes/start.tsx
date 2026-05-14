@@ -210,8 +210,8 @@ function StartPage() {
             <input value={skills} onChange={(e) => setSkills(e.target.value)} className="input" placeholder="Designer at Stripe" maxLength={80} />
           </Field>
 
-          <Field label="Instagram (optional)">
-            <input value={instagram} onChange={(e) => setInstagram(e.target.value.replace(/^@/, ""))} className="input" placeholder="yourhandle" maxLength={40} />
+          <Field label="Social handle (optional)" hint="Any platform — Instagram, X, LinkedIn, Telegram. Paste handle or full URL.">
+            <input value={instagram} onChange={(e) => setInstagram(e.target.value)} className="input" placeholder="@yourhandle or https://linkedin.com/in/you" maxLength={120} />
           </Field>
 
           <Field label="Interests">
