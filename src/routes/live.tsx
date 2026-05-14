@@ -431,6 +431,33 @@ function LivePage() {
 
         {tab === "inbox" && (
           <div className="mt-6 grid gap-6 md:grid-cols-2">
+            {incomingInvites.length > 0 && (
+              <section className="md:col-span-2">
+                <h2 className="mb-3 font-display text-sm uppercase tracking-widest text-gold">
+                  Group invites ({incomingInvites.length})
+                </h2>
+                <div className="grid gap-2 md:grid-cols-2">
+                  {incomingInvites.map((r) => {
+                    const g = groups.find((x) => x.id === r.group_id);
+                    const owner = g ? users.find((u) => u.session_id === g.owner_session) : null;
+                    if (!g) return null;
+                    return (
+                      <div key={r.id} className="glass rounded-2xl p-3">
+                        <div className="flex items-center gap-3">
+                          <div className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-gold text-accent-foreground"><Crown className="h-4 w-4" /></div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold truncate">Invite to {g.name}</p>
+                            <p className="text-[11px] text-muted-foreground">from {owner?.name ?? "host"} · {memberCount(g.id)}/{g.max_size}</p>
+                          </div>
+                          <button onClick={() => respondGroupReq(r, "declined")} className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:text-destructive"><X className="h-4 w-4" /></button>
+                          <button onClick={() => respondGroupReq(r, "accepted")} className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-gold text-accent-foreground"><Check className="h-4 w-4" /></button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
             <section>
               <h2 className="mb-3 font-display text-sm uppercase tracking-widest text-gold">
                 Requests for you ({incomingPending.length})
