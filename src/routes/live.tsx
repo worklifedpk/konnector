@@ -3,10 +3,18 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getSessionId, clearSession } from "@/lib/session";
 import {
-  ArrowLeft, MessageCircle, MapPin, Users, Search, LogOut, Instagram,
+  ArrowLeft, MessageCircle, MapPin, Users, Search, LogOut, Link2, Mail,
   Map as MapIcon, List, Bell, Check, X, Send, Clock, Plus, UserPlus, Crown,
 } from "lucide-react";
 import { toast } from "sonner";
+
+// Normalize a free-form social handle (or URL) to a clickable URL.
+function socialUrl(s: string): string {
+  const v = s.trim();
+  if (/^https?:\/\//i.test(v)) return v;
+  if (v.startsWith("@")) return `https://instagram.com/${v.slice(1)}`;
+  return `https://${v}`;
+}
 
 export const Route = createFileRoute("/live")({ component: LivePage });
 
