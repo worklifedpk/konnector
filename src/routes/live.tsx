@@ -318,6 +318,11 @@ function LivePage() {
                     status={reqStatus(u.session_id)}
                     onRequest={() => sendRequest(u.session_id)}
                     onChat={() => nav({ to: "/chat/$peer", params: { peer: u.session_id } })}
+                    canInvite={myOwnedGroups.length > 0}
+                    onInvite={() => {
+                      const g = myOwnedGroups[0];
+                      if (g) inviteToGroup(g.id, u.session_id);
+                    }}
                   />
                 ))}
               </div>
