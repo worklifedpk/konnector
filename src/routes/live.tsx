@@ -181,18 +181,32 @@ function LivePage() {
 
   // Groups helpers
   const memberCount = (gid: string) => groupMembers.filter((m) => m.group_id === gid).length + 1; // +owner
-  const myGroupReq = (gid: string) => groupReqs.find((r) => r.group_id === gid && r.from_session === me);
+  const myGroupReq = (gid: string) => groupReqs.find((r) => r.group_id === gid && r.from_session === me && r.kind === "join");
   const isMember = (gid: string) =>
     groupMembers.some((m) => m.group_id === gid && m.session_id === me) ||
     groups.some((g) => g.id === gid && g.owner_session === me);
+  const myOwnedGroups = groups.filter((g) => g.owner_session === me);
   const incomingGroupReqs = groupReqs.filter((r) =>
-    r.status === "pending" && groups.some((g) => g.id === r.group_id && g.owner_session === me)
+    r.status === "pending" && r.kind === "join" &&
+    groups.some((g) => g.id === r.group_id && g.owner_session === me)
+  );
+  const incomingInvites = groupReqs.filter((r) =>
+    r.status === "pending" && r.kind === "invite" && r.to_session === me
   );
 
   const requestJoinGroup = async (gid: string) => {
-    const { error } = await sb.from("konnect_group_requests").insert({ group_id: gid, from_session: me, status: "pending" });
+    const { error } = await sb.from("konnect_group_requests").insert({ group_id: gid, from_session: me, kind: "join", status: "pending" });
     if (error) return toast.error(error.message);
     toast.success("Join request sent");
+  };
+
+  const inviteToGroup = async (gid: string, peer: string) => {
+    // prevent duplicates
+    const dup = groupReqs.find((r) => r.group_id === gid && r.to_session === peer && r.kind === "invite" && r.status !== "declined");
+    if (dup) return toast("Already invited");
+    const { error } = await sb.from("konnect_group_requests").insert({ group_id: gid, from_session: me, to_session: peer, kind: "invite", status: "pending" });
+    if (error) return toast.error(error.message);
+    toast.success("Invite sent");
   };
 
   const respondGroupReq = async (req: GroupReq, status: "accepted" | "declined") => {
@@ -204,8 +218,10 @@ function LivePage() {
         toast.error("Group is full");
         return;
       }
-      await sb.from("konnect_group_members").insert({ group_id: req.group_id, session_id: req.from_session });
-      toast.success("Member added");
+      // For invites the joining session is to_session; for join requests it's from_session
+      const joinerSession = req.kind === "invite" ? (req.to_session ?? me) : req.from_session;
+      await sb.from("konnect_group_members").insert({ group_id: req.group_id, session_id: joinerSession });
+      toast.success(req.kind === "invite" ? "Joined group" : "Member added");
     }
   };
 
