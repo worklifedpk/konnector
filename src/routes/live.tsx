@@ -25,7 +25,7 @@ type LiveUser = {
   age: number | null; gender: string | null;
   intent: string; mode: string;
   location_name: string | null; location_lat: number; location_lng: number;
-  skills: string | null; instagram: string | null;
+  skills: string | null; instagram: string | null; email: string | null;
   interests: string[] | null; expires_at: string;
 };
 
@@ -43,6 +43,7 @@ type Group = {
 
 type GroupReq = {
   id: string; group_id: string; from_session: string;
+  to_session: string | null; kind: "join" | "invite";
   status: "pending" | "accepted" | "declined";
 };
 
