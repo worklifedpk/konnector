@@ -687,12 +687,14 @@ function Legend({ color, label }: { color: string; label: string }) {
 }
 
 function UserCard({
-  u, status, onRequest, onChat,
+  u, status, onRequest, onChat, onInvite, canInvite,
 }: {
   u: LiveUser & { _km: number };
   status: "none" | "sent" | "incoming" | "accepted" | "declined";
   onRequest: () => void;
   onChat: () => void;
+  onInvite?: () => void;
+  canInvite?: boolean;
 }) {
   return (
     <div className="glass rounded-2xl p-4 transition hover:-translate-y-1 hover:glow-royal">
@@ -707,8 +709,19 @@ function UserCard({
           </div>
           <p className="truncate text-xs text-muted-foreground">{u.skills || u.gender || "Available now"}</p>
           <div className="mt-1 flex items-center gap-2 text-xs text-gold">
-            <MapPin className="h-3 w-3" /> {u._km < 0.1 ? "Same spot" : `${u._km.toFixed(1)} km away`}
+            <MapPin className="h-3 w-3" /> {u._km < 0.1 ? "Same spot" : `${u._km.toFixed(2)} km away`}
           </div>
+          {u.email && (
+            <a href={`mailto:${u.email}`} className="mt-1 flex items-center gap-1.5 truncate text-[11px] text-muted-foreground hover:text-foreground">
+              <Mail className="h-3 w-3 text-gold" /> {u.email}
+            </a>
+          )}
+          {u.instagram && (
+            <a href={socialUrl(u.instagram)} target="_blank" rel="noreferrer"
+              className="mt-1 flex items-center gap-1.5 truncate text-[11px] text-muted-foreground hover:text-foreground">
+              <Link2 className="h-3 w-3 text-gold" /> {u.instagram.replace(/^https?:\/\//, "")}
+            </a>
+          )}
         </div>
       </div>
       {u.interests && u.interests.length > 0 && (
@@ -718,14 +731,14 @@ function UserCard({
           ))}
         </div>
       )}
-      <div className="mt-4 flex gap-2">
+      <div className="mt-4 flex flex-wrap gap-2">
         {status === "accepted" && (
-          <button onClick={onChat} className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-royal px-3 py-2 text-sm font-semibold text-primary-foreground transition hover:scale-[1.02]">
+          <button onClick={onChat} className="flex-1 btn-gw inline-flex items-center justify-center gap-2 px-3 py-2 text-sm">
             <MessageCircle className="h-4 w-4" /> Open Chat
           </button>
         )}
         {status === "none" && (
-          <button onClick={onRequest} className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-gold px-3 py-2 text-sm font-semibold text-accent-foreground glow-gold transition hover:scale-[1.02]">
+          <button onClick={onRequest} className="flex-1 btn-gw inline-flex items-center justify-center gap-2 px-3 py-2 text-sm">
             <Send className="h-4 w-4" /> Send Request
           </button>
         )}
@@ -744,13 +757,14 @@ function UserCard({
             Declined
           </button>
         )}
-        {u.instagram && (
-          <a href={`https://instagram.com/${u.instagram}`} target="_blank" rel="noreferrer"
-            className="inline-flex items-center justify-center rounded-xl border border-border bg-card/40 px-3 py-2 text-muted-foreground hover:text-foreground">
-            <Instagram className="h-4 w-4" />
-          </a>
+        {canInvite && onInvite && (
+          <button onClick={onInvite} title="Invite to your group"
+            className="inline-flex items-center justify-center gap-1 rounded-xl border border-gold/40 bg-card/40 px-3 py-2 text-xs font-semibold text-gold hover:bg-gold/10">
+            <UserPlus className="h-3.5 w-3.5" /> Invite
+          </button>
         )}
       </div>
     </div>
   );
 }
+
