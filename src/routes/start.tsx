@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, MapPin, Loader2, Sparkles, Calendar, Compass, Clock, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getMode, getSessionId, setMode, saveProfile, loadProfile } from "@/lib/session";
+import { reverseGeocode } from "@/lib/dist";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/start")({ component: StartPage });
