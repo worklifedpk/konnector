@@ -834,7 +834,8 @@ function UserCard({
           </div>
           <p className="truncate text-xs text-muted-foreground">{u.skills || u.gender || "Available now"}</p>
           <div className="mt-1 flex items-center gap-2 text-xs text-gold">
-            <MapPin className="h-3 w-3" /> {u._km < 0.1 ? "Same spot" : `${u._km.toFixed(2)} km away`}
+            <MapPin className="h-3 w-3" /> {formatDist(u._km)}
+            {u.location_accuracy_m != null && <span className="text-muted-foreground">±{Math.round(u.location_accuracy_m)}m</span>}
           </div>
           {u.email && (
             <a href={`mailto:${u.email}`} className="mt-1 flex items-center gap-1.5 truncate text-[11px] text-muted-foreground hover:text-foreground">
