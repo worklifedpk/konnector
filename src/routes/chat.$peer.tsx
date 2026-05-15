@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getSessionId } from "@/lib/session";
 import { ArrowLeft, Send, MessageCircle, MapPin, Lock } from "lucide-react";
+import { distKm, formatDist } from "@/lib/dist";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/chat/$peer")({
