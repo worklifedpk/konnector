@@ -147,9 +147,15 @@ function LivePage() {
     return "incoming";
   };
 
-  const sendRequest = async (peer: string) => {
+  const sendRequest = async (peer: string, intro?: string) => {
     const { error } = await sb.from("konnect_requests").insert({ from_session: me, to_session: peer, status: "pending" });
     if (error) return toast.error(error.message);
+    if (intro && intro.trim()) {
+      // pre-send the intro message; it becomes visible once the request is accepted.
+      await sb.from("konnect_messages").insert({
+        from_session: me, to_session: peer, content: intro.trim().slice(0, 300), kind: "text",
+      });
+    }
     toast.success("Request sent");
   };
 
