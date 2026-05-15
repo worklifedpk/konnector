@@ -82,19 +82,27 @@ function StartPage() {
     if (!navigator.geolocation) return toast.error("Geolocation not supported");
     setGeoLoading(true);
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+      async (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        const acc = pos.coords.accuracy;
+        setCoords({ lat, lng });
+        setAccuracyM(acc);
         setLocationLabel("Current location");
         setGeoLoading(false);
-        toast.success("Location locked in");
+        toast.success(`Location locked (±${Math.round(acc)}m)`);
+        const addr = await reverseGeocode(lat, lng);
+        if (addr) setLocationAddress(addr);
       },
-      () => {
+      (err) => {
         setGeoLoading(false);
-        toast.error("Couldn't get location. Using approximate.");
-        setCoords({ lat: 28.6139, lng: 77.2090 });
-        setLocationLabel("Approximate");
+        toast.error(
+          err.code === 1
+            ? "Location permission denied. Please allow access to go live."
+            : "Couldn't get your exact location. Please try again outside."
+        );
       },
-      { enableHighAccuracy: true, timeout: 8000 }
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
     );
   };
 
