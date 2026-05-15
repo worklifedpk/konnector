@@ -134,13 +134,15 @@ function StartPage() {
       mode: mode === "event" ? `event:${finalEventName.toLowerCase()}` : "nearby",
       event_type: mode === "event" ? eventType : null,
       location_name: locationLabel || (mode === "event" ? finalEventName : "Nearby"),
+      location_address: locationAddress || null,
+      location_accuracy_m: accuracyM,
       location_lat: coords.lat,
       location_lng: coords.lng,
       instagram: instagram.trim() || null,
       skills: skills.trim() || null,
       interests: interests.length ? interests : null,
       expires_at,
-    };
+    } as any;
 
     const { error } = await supabase.from("konnect_users").upsert(payload, { onConflict: "session_id" });
     setLoading(false);
