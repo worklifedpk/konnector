@@ -440,10 +440,10 @@ function LivePage() {
                     {g.description && <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{g.description}</p>}
                     <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
                       <span className="inline-flex items-center gap-1"><Users className="h-3 w-3" /> {memberCount(g.id)}/{g.max_size}</span>
-                      <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" /> {km < 0.1 ? "Same spot" : `${km.toFixed(1)} km`}</span>
+                      <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" /> {formatDist(km)}</span>
                       {owner && <span>by {owner.name}</span>}
                     </div>
-                    <div className="mt-3">
+                    <div className="mt-3 flex flex-wrap gap-2">
                       {mine ? (
                         <span className="inline-block rounded-full border border-gold/30 bg-gold/10 px-3 py-1.5 text-xs text-gold">You're the host</span>
                       ) : member ? (
@@ -458,6 +458,12 @@ function LivePage() {
                         <button onClick={() => requestJoinGroup(g.id)}
                           className="inline-flex items-center gap-2 rounded-full bg-gradient-royal px-4 py-1.5 text-xs font-semibold text-primary-foreground glow-royal transition hover:scale-[1.02]">
                           <Send className="h-3 w-3" /> Request to Join
+                        </button>
+                      )}
+                      {(mine || member) && (
+                        <button onClick={() => setChatGroup(g)}
+                          className="inline-flex items-center gap-1.5 rounded-full border border-gold/40 bg-gold/10 px-3 py-1.5 text-xs font-semibold text-gold hover:bg-gold/20">
+                          <Hash className="h-3 w-3" /> Group chat
                         </button>
                       )}
                     </div>
