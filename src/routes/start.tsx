@@ -39,7 +39,9 @@ function StartPage() {
   const [interests, setInterests] = useState<string[]>([]);
   const [ttlHours, setTtlHours] = useState<number>(2);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [accuracyM, setAccuracyM] = useState<number | null>(null);
   const [locationLabel, setLocationLabel] = useState<string>("");
+  const [locationAddress, setLocationAddress] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [geoLoading, setGeoLoading] = useState(false);
   const [checkingExisting, setCheckingExisting] = useState(true);
