@@ -356,7 +356,6 @@ function LivePage() {
                   <UserCard key={u.id} u={u as any}
                     status={reqStatus(u.session_id)}
                     onRequest={() => setProfileOpen(u as LiveUser)}
-                    onOpen={() => setProfileOpen(u as LiveUser)}
                     onChat={() => nav({ to: "/chat/$peer", params: { peer: u.session_id } })}
                     canInvite={myOwnedGroups.length > 0}
                     onInvite={() => {
