@@ -256,10 +256,16 @@ function StartPage() {
                 Use current location
               </button>
               {coords && (
-                <span className="inline-flex items-center gap-2 rounded-xl border border-border bg-card/40 px-3 py-2 text-xs text-muted-foreground">
-                  <span className="h-2 w-2 rounded-full bg-gold" />
-                  {locationLabel} · {coords.lat.toFixed(3)}, {coords.lng.toFixed(3)}
-                </span>
+                <div className="flex flex-col gap-1 rounded-xl border border-gold/30 bg-card/40 px-3 py-2 text-xs">
+                  <span className="inline-flex items-center gap-2 text-foreground">
+                    <span className="h-2 w-2 rounded-full bg-gold animate-pulse" />
+                    {coords.lat.toFixed(6)}, {coords.lng.toFixed(6)}
+                    {accuracyM != null && <span className="text-gold">±{Math.round(accuracyM)}m</span>}
+                  </span>
+                  {locationAddress && (
+                    <span className="text-muted-foreground truncate max-w-[280px]">{locationAddress}</span>
+                  )}
+                </div>
               )}
             </div>
           </Field>
