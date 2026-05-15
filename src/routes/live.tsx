@@ -893,3 +893,195 @@ function UserCard({
   );
 }
 
+
+/* ---------- Profile Dialog (slide-up) ---------- */
+
+function ProfileDialog({
+  u, me, status, onClose, onSendRequest, onChat,
+}: {
+  u: LiveUser;
+  me: LiveUser;
+  status: "none" | "sent" | "incoming" | "accepted" | "declined";
+  onClose: () => void;
+  onSendRequest: (intro: string) => void | Promise<void>;
+  onChat: () => void;
+}) {
+  const [intro, setIntro] = useState("");
+  const [sending, setSending] = useState(false);
+  const km = distKm({ lat: me.location_lat, lng: me.location_lng }, { lat: u.location_lat, lng: u.location_lng });
+
+  const send = async () => {
+    setSending(true);
+    await onSendRequest(intro);
+    setSending(false);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-end sm:place-items-center bg-background/80 backdrop-blur p-0 sm:p-4" onClick={onClose}>
+      <div className="w-full max-w-md glass-strong rounded-t-3xl sm:rounded-3xl p-6 animate-float-up" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h2 className="font-display text-xl font-bold">Profile</h2>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
+        </div>
+
+        <div className="mt-4 flex items-center gap-4">
+          <div className="grid h-16 w-16 place-items-center rounded-2xl bg-gradient-royal font-display text-2xl font-bold text-primary-foreground">
+            {u.name[0]?.toUpperCase()}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="font-display text-lg font-semibold truncate">{u.name}{u.age ? `, ${u.age}` : ""}</p>
+            <p className="truncate text-xs text-muted-foreground">{u.skills || u.gender || "Available now"}</p>
+            <p className="mt-1 inline-flex items-center gap-1 text-xs text-gold">
+              <MapPin className="h-3 w-3" /> {formatDist(km)}
+              {u.location_accuracy_m != null && <span className="text-muted-foreground">· ±{Math.round(u.location_accuracy_m)}m</span>}
+            </p>
+          </div>
+        </div>
+
+        {u.location_address && (
+          <p className="mt-3 text-xs text-muted-foreground truncate">{u.location_address}</p>
+        )}
+
+        {u.interests && u.interests.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {u.interests.map((i) => (
+              <span key={i} className="rounded-full border border-border bg-card/40 px-2 py-0.5 text-[11px] text-muted-foreground">{i}</span>
+            ))}
+          </div>
+        )}
+
+        {status === "accepted" ? (
+          <button onClick={onChat} className="btn-gw mt-6 inline-flex w-full items-center justify-center gap-2 px-4 py-3 text-sm">
+            <MessageCircle className="h-4 w-4" /> Open Chat
+          </button>
+        ) : status === "sent" ? (
+          <div className="mt-6 rounded-2xl border border-gold/30 bg-card/40 p-4 text-center text-sm text-gold">
+            <Clock className="mx-auto mb-1 h-4 w-4" /> Waiting for {u.name} to accept…
+          </div>
+        ) : status === "incoming" ? (
+          <div className="mt-6 rounded-2xl border border-emerald-400/40 bg-emerald-400/10 p-4 text-center text-sm text-emerald-300">
+            They want to connect. Open Inbox to accept.
+          </div>
+        ) : status === "declined" ? (
+          <div className="mt-6 rounded-2xl border border-border bg-card/40 p-4 text-center text-sm text-muted-foreground">
+            Request was declined.
+          </div>
+        ) : (
+          <>
+            <label className="mt-5 block text-xs uppercase tracking-widest text-gold">Say hi (optional)</label>
+            <textarea value={intro} onChange={(e) => setIntro(e.target.value)} maxLength={300} rows={3}
+              placeholder={`Hi ${u.name}! I'm at the same spot — want to meet?`}
+              className="mt-1.5 w-full rounded-xl border border-border bg-card/40 px-3 py-2.5 text-sm outline-none focus:border-gold" />
+            <button onClick={send} disabled={sending}
+              className="btn-gw mt-4 inline-flex w-full items-center justify-center gap-2 px-4 py-3 text-sm font-semibold disabled:opacity-60">
+              <Send className="h-4 w-4" /> {sending ? "Sending…" : "Send Request"}
+            </button>
+            <p className="mt-2 text-center text-[11px] text-muted-foreground">
+              When they accept, your chat opens automatically.
+            </p>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Group Chat Dialog ---------- */
+
+type GMsg = {
+  id: string; group_id: string; from_session: string;
+  content: string; kind: string; created_at: string;
+};
+
+function GroupChatDialog({
+  group, me, users, onClose,
+}: {
+  group: Group;
+  me: LiveUser;
+  users: LiveUser[];
+  onClose: () => void;
+}) {
+  const [messages, setMessages] = useState<GMsg[]>([]);
+  const [text, setText] = useState("");
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const load = async () => {
+      const { data } = await sb.from("konnect_group_messages")
+        .select("*")
+        .eq("group_id", group.id)
+        .gt("expires_at", new Date().toISOString())
+        .order("created_at", { ascending: true });
+      setMessages((data ?? []) as GMsg[]);
+    };
+    load();
+    const ch = supabase
+      .channel(`group-${group.id}`)
+      .on("postgres_changes",
+        { event: "INSERT", schema: "public", table: "konnect_group_messages", filter: `group_id=eq.${group.id}` },
+        (payload) => setMessages((prev) => [...prev, payload.new as GMsg])
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [group.id]);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [messages.length]);
+
+  const send = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const c = text.trim();
+    if (!c) return;
+    const { error } = await sb.from("konnect_group_messages").insert({
+      group_id: group.id, from_session: me.session_id, content: c.slice(0, 500), kind: "text",
+    });
+    if (error) return toast.error(error.message);
+    setText("");
+  };
+
+  const nameOf = (sid: string) => sid === me.session_id ? "You" : (users.find((u) => u.session_id === sid)?.name ?? "Member");
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-end sm:place-items-center bg-background/80 backdrop-blur p-0 sm:p-4" onClick={onClose}>
+      <div className="flex w-full max-w-lg h-[80vh] sm:h-[600px] flex-col overflow-hidden glass-strong rounded-t-3xl sm:rounded-3xl animate-float-up" onClick={(e) => e.stopPropagation()}>
+        <header className="flex items-center gap-3 border-b border-border/60 px-5 py-4">
+          <div className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-gold text-accent-foreground"><Hash className="h-4 w-4" /></div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] uppercase tracking-widest text-gold">{group.event_type}</p>
+            <h2 className="font-display text-base font-semibold truncate">{group.name}</h2>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
+        </header>
+
+        <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-2.5">
+          {messages.length === 0 && (
+            <p className="mt-8 text-center text-sm text-muted-foreground">No messages yet — say hi to the group.</p>
+          )}
+          {messages.map((m) => {
+            const mine = m.from_session === me.session_id;
+            return (
+              <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+                <div className={`max-w-[78%] rounded-2xl px-3.5 py-2 text-sm ${
+                  mine ? "bg-gradient-royal text-primary-foreground rounded-br-sm" : "glass text-foreground rounded-bl-sm"
+                }`}>
+                  {!mine && <p className="text-[10px] font-semibold text-gold mb-0.5">{nameOf(m.from_session)}</p>}
+                  {m.content}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <form onSubmit={send} className="flex items-center gap-2 border-t border-border/60 px-4 py-3">
+          <input value={text} onChange={(e) => setText(e.target.value)} maxLength={500}
+            placeholder="Message the group…"
+            className="flex-1 rounded-full border border-border bg-card/60 px-4 py-2.5 text-sm outline-none focus:border-gold" />
+          <button type="submit" className="btn-gw grid h-10 w-10 place-items-center !rounded-full">
+            <Send className="h-4 w-4" />
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
