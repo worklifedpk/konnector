@@ -176,7 +176,7 @@ function ChatPage() {
           <div className="glass rounded-2xl p-4 text-center text-sm">
             <Lock className="mx-auto mb-2 h-4 w-4 text-gold" />
             You need to be within <span className="text-gold font-semibold">{CHAT_RADIUS_KM} km</span> of {peerInfo?.name ?? "your match"} to chat.
-            Currently <span className="text-gold font-semibold">{km.toFixed(2)} km</span> apart — get closer to unlock.
+            Currently <span className="text-gold font-semibold">{formatDist(km)}</span> apart — get closer to unlock.
           </div>
         </div>
       )}
