@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getSessionId } from "@/lib/session";
 import { ArrowLeft, Send, MessageCircle, MapPin, Lock } from "lucide-react";
+import { distKm, formatDist } from "@/lib/dist";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/chat/$peer")({
@@ -57,12 +58,7 @@ const GESTURES = [
 
 const CHAT_RADIUS_KM = 1.0; // Chat unlocks only when both are within 1 km
 
-function distKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
-  const R = 6371, toRad = (d: number) => (d * Math.PI) / 180;
-  const dLat = toRad(b.lat - a.lat), dLng = toRad(b.lng - a.lng);
-  const x = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(x));
-}
+// distKm imported from @/lib/dist
 
 function ChatPage() {
   const { peer } = Route.useParams();
@@ -166,7 +162,7 @@ function ChatPage() {
             <h2 className="font-display text-base font-semibold leading-none">{peerInfo?.name ?? "Stranger"}</h2>
             <p className="text-[11px] text-muted-foreground inline-flex items-center gap-1">
               <MapPin className="h-3 w-3" />
-              {km === null ? "locating…" : km < 0.05 ? "Same spot" : `${km.toFixed(2)} km away`}
+              {km === null ? "locating…" : formatDist(km)}
             </p>
           </div>
           <span className={`rounded-full border px-2 py-1 text-[10px] ${inRange ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-300" : "border-gold/30 bg-card/40 text-gold"}`}>
@@ -180,7 +176,7 @@ function ChatPage() {
           <div className="glass rounded-2xl p-4 text-center text-sm">
             <Lock className="mx-auto mb-2 h-4 w-4 text-gold" />
             You need to be within <span className="text-gold font-semibold">{CHAT_RADIUS_KM} km</span> of {peerInfo?.name ?? "your match"} to chat.
-            Currently <span className="text-gold font-semibold">{km.toFixed(2)} km</span> apart — get closer to unlock.
+            Currently <span className="text-gold font-semibold">{formatDist(km)}</span> apart — get closer to unlock.
           </div>
         </div>
       )}

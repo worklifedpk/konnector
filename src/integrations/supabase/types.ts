@@ -38,6 +38,36 @@ export type Database = {
         }
         Relationships: []
       }
+      konnect_group_messages: {
+        Row: {
+          content: string
+          created_at: string
+          expires_at: string
+          from_session: string
+          group_id: string
+          id: string
+          kind: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          expires_at?: string
+          from_session: string
+          group_id: string
+          id?: string
+          kind?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          expires_at?: string
+          from_session?: string
+          group_id?: string
+          id?: string
+          kind?: string
+        }
+        Relationships: []
+      }
       konnect_group_requests: {
         Row: {
           created_at: string
@@ -78,6 +108,7 @@ export type Database = {
           event_type: string
           expires_at: string
           id: string
+          location_address: string | null
           location_lat: number
           location_lng: number
           location_name: string | null
@@ -92,6 +123,7 @@ export type Database = {
           event_type: string
           expires_at?: string
           id?: string
+          location_address?: string | null
           location_lat: number
           location_lng: number
           location_name?: string | null
@@ -106,6 +138,7 @@ export type Database = {
           event_type?: string
           expires_at?: string
           id?: string
+          location_address?: string | null
           location_lat?: number
           location_lng?: number
           location_name?: string | null
@@ -185,6 +218,8 @@ export type Database = {
           instagram: string | null
           intent: string
           interests: string[] | null
+          location_accuracy_m: number | null
+          location_address: string | null
           location_lat: number
           location_lng: number
           location_name: string | null
@@ -205,6 +240,8 @@ export type Database = {
           instagram?: string | null
           intent?: string
           interests?: string[] | null
+          location_accuracy_m?: number | null
+          location_address?: string | null
           location_lat: number
           location_lng: number
           location_name?: string | null
@@ -225,6 +262,8 @@ export type Database = {
           instagram?: string | null
           intent?: string
           interests?: string[] | null
+          location_accuracy_m?: number | null
+          location_address?: string | null
           location_lat?: number
           location_lng?: number
           location_name?: string | null

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, MapPin, Loader2, Sparkles, Calendar, Compass, Clock, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getMode, getSessionId, setMode, saveProfile, loadProfile } from "@/lib/session";
+import { reverseGeocode } from "@/lib/dist";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/start")({ component: StartPage });
@@ -38,7 +39,9 @@ function StartPage() {
   const [interests, setInterests] = useState<string[]>([]);
   const [ttlHours, setTtlHours] = useState<number>(2);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [accuracyM, setAccuracyM] = useState<number | null>(null);
   const [locationLabel, setLocationLabel] = useState<string>("");
+  const [locationAddress, setLocationAddress] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [geoLoading, setGeoLoading] = useState(false);
   const [checkingExisting, setCheckingExisting] = useState(true);
@@ -79,19 +82,27 @@ function StartPage() {
     if (!navigator.geolocation) return toast.error("Geolocation not supported");
     setGeoLoading(true);
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+      async (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        const acc = pos.coords.accuracy;
+        setCoords({ lat, lng });
+        setAccuracyM(acc);
         setLocationLabel("Current location");
         setGeoLoading(false);
-        toast.success("Location locked in");
+        toast.success(`Location locked (±${Math.round(acc)}m)`);
+        const addr = await reverseGeocode(lat, lng);
+        if (addr) setLocationAddress(addr);
       },
-      () => {
+      (err) => {
         setGeoLoading(false);
-        toast.error("Couldn't get location. Using approximate.");
-        setCoords({ lat: 28.6139, lng: 77.2090 });
-        setLocationLabel("Approximate");
+        toast.error(
+          err.code === 1
+            ? "Location permission denied. Please allow access to go live."
+            : "Couldn't get your exact location. Please try again outside."
+        );
       },
-      { enableHighAccuracy: true, timeout: 8000 }
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
     );
   };
 
@@ -123,13 +134,15 @@ function StartPage() {
       mode: mode === "event" ? `event:${finalEventName.toLowerCase()}` : "nearby",
       event_type: mode === "event" ? eventType : null,
       location_name: locationLabel || (mode === "event" ? finalEventName : "Nearby"),
+      location_address: locationAddress || null,
+      location_accuracy_m: accuracyM,
       location_lat: coords.lat,
       location_lng: coords.lng,
       instagram: instagram.trim() || null,
       skills: skills.trim() || null,
       interests: interests.length ? interests : null,
       expires_at,
-    };
+    } as any;
 
     const { error } = await supabase.from("konnect_users").upsert(payload, { onConflict: "session_id" });
     setLoading(false);
@@ -243,10 +256,16 @@ function StartPage() {
                 Use current location
               </button>
               {coords && (
-                <span className="inline-flex items-center gap-2 rounded-xl border border-border bg-card/40 px-3 py-2 text-xs text-muted-foreground">
-                  <span className="h-2 w-2 rounded-full bg-gold" />
-                  {locationLabel} · {coords.lat.toFixed(3)}, {coords.lng.toFixed(3)}
-                </span>
+                <div className="flex flex-col gap-1 rounded-xl border border-gold/30 bg-card/40 px-3 py-2 text-xs">
+                  <span className="inline-flex items-center gap-2 text-foreground">
+                    <span className="h-2 w-2 rounded-full bg-gold animate-pulse" />
+                    {coords.lat.toFixed(6)}, {coords.lng.toFixed(6)}
+                    {accuracyM != null && <span className="text-gold">±{Math.round(accuracyM)}m</span>}
+                  </span>
+                  {locationAddress && (
+                    <span className="text-muted-foreground truncate max-w-[280px]">{locationAddress}</span>
+                  )}
+                </div>
               )}
             </div>
           </Field>
