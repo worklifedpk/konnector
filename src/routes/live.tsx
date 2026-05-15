@@ -27,6 +27,7 @@ type LiveUser = {
   age: number | null; gender: string | null;
   intent: string; mode: string;
   location_name: string | null; location_lat: number; location_lng: number;
+  location_address?: string | null; location_accuracy_m?: number | null;
   skills: string | null; instagram: string | null; email: string | null;
   interests: string[] | null; expires_at: string;
 };
