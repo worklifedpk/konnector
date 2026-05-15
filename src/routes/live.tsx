@@ -586,6 +586,38 @@ function LivePage() {
       {showCreate && (
         <CreateGroupDialog me={meRow} onClose={() => setShowCreate(false)} />
       )}
+
+      {profileOpen && (
+        <ProfileDialog
+          u={profileOpen}
+          me={meRow}
+          status={reqStatus(profileOpen.session_id)}
+          onClose={() => setProfileOpen(null)}
+          onSendRequest={async (intro) => {
+            await sendRequest(profileOpen.session_id, intro);
+            setProfileOpen(null);
+          }}
+          onChat={() => {
+            const sid = profileOpen.session_id;
+            setProfileOpen(null);
+            nav({ to: "/chat/$peer", params: { peer: sid } });
+          }}
+        />
+      )}
+
+      {chatGroup && (
+        <GroupChatDialog
+          group={chatGroup}
+          me={meRow}
+          users={users}
+          onClose={() => setChatGroup(null)}
+        />
+      )}
+
+      <style>{`
+        .profile-slider::-webkit-scrollbar { height: 6px; }
+        .profile-slider::-webkit-scrollbar-thumb { background: color-mix(in oklab, var(--gold) 40%, transparent); border-radius: 9999px; }
+      `}</style>
     </main>
   );
 }
