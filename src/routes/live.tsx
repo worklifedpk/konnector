@@ -68,6 +68,9 @@ function LivePage() {
   const [view, setView] = useState<"list" | "map">("list");
   const [tab, setTab] = useState<"discover" | "groups" | "inbox">("discover");
   const [showCreate, setShowCreate] = useState(false);
+  const [profileOpen, setProfileOpen] = useState<LiveUser | null>(null);
+  const [chatGroup, setChatGroup] = useState<Group | null>(null);
+  const sliderRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!me) { nav({ to: "/start" }); return; }
