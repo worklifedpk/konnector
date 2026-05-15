@@ -162,7 +162,7 @@ function ChatPage() {
             <h2 className="font-display text-base font-semibold leading-none">{peerInfo?.name ?? "Stranger"}</h2>
             <p className="text-[11px] text-muted-foreground inline-flex items-center gap-1">
               <MapPin className="h-3 w-3" />
-              {km === null ? "locating…" : km < 0.05 ? "Same spot" : `${km.toFixed(2)} km away`}
+              {km === null ? "locating…" : formatDist(km)}
             </p>
           </div>
           <span className={`rounded-full border px-2 py-1 text-[10px] ${inRange ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-300" : "border-gold/30 bg-card/40 text-gold"}`}>
