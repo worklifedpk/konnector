@@ -308,6 +308,40 @@ function LivePage() {
               ))}
             </div>
 
+            {/* Sliding profile carousel — nearest live people */}
+            {others.length > 0 && (
+              <div className="mt-5">
+                <div className="mb-2 flex items-center justify-between">
+                  <h3 className="font-display text-sm uppercase tracking-widest text-gold inline-flex items-center gap-1.5">
+                    <Sparkles className="h-3.5 w-3.5" /> Nearest live · tap to connect
+                  </h3>
+                  <div className="hidden sm:flex gap-1">
+                    <button onClick={() => sliderRef.current?.scrollBy({ left: -260, behavior: "smooth" })} className="grid h-8 w-8 place-items-center rounded-full border border-border bg-card/40 text-muted-foreground hover:text-foreground"><ChevronLeft className="h-4 w-4" /></button>
+                    <button onClick={() => sliderRef.current?.scrollBy({ left: 260, behavior: "smooth" })} className="grid h-8 w-8 place-items-center rounded-full border border-border bg-card/40 text-muted-foreground hover:text-foreground"><ChevronRight className="h-4 w-4" /></button>
+                  </div>
+                </div>
+                <div ref={sliderRef} className="profile-slider flex gap-3 overflow-x-auto pb-3 snap-x snap-mandatory">
+                  {others.slice(0, 30).map((u) => (
+                    <button key={u.id} onClick={() => setProfileOpen(u as LiveUser)}
+                      className="snap-start shrink-0 w-[220px] rounded-2xl glass p-3 text-left transition hover:-translate-y-1 hover:glow-gold">
+                      <div className="relative h-28 w-full overflow-hidden rounded-xl bg-gradient-royal grid place-items-center">
+                        <span className="font-display text-4xl font-bold text-primary-foreground">
+                          {u.name[0]?.toUpperCase()}
+                        </span>
+                        <span className="absolute top-2 right-2 rounded-full bg-background/70 px-2 py-0.5 text-[10px] text-gold backdrop-blur inline-flex items-center gap-1">
+                          <MapPin className="h-3 w-3" /> {formatDist(u._km)}
+                        </span>
+                      </div>
+                      <div className="mt-2">
+                        <p className="font-semibold truncate">{u.name}{u.age ? `, ${u.age}` : ""}</p>
+                        <p className="truncate text-[11px] text-muted-foreground">{u.skills || u.gender || "Available now"}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {view === "map" && <MapView me={meRow} others={others as any} sendRequest={sendRequest} reqStatus={reqStatus} nav={nav} />}
 
             {view === "list" && (
