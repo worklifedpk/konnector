@@ -1,10 +1,12 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getSessionId, clearSession } from "@/lib/session";
+import { distKm, formatDist } from "@/lib/dist";
 import {
   ArrowLeft, MessageCircle, MapPin, Users, Search, LogOut, Link2, Mail,
   Map as MapIcon, List, Bell, Check, X, Send, Clock, Plus, UserPlus, Crown,
+  ChevronLeft, ChevronRight, Sparkles, Hash,
 } from "lucide-react";
 import { toast } from "sonner";
 
