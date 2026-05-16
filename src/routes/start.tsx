@@ -144,17 +144,6 @@ function StartPage() {
       setManualSearching(false);
     }
   };
-      (err) => {
-        setGeoLoading(false);
-        toast.error(
-          err.code === 1
-            ? "Location permission denied. Please allow access to go live."
-            : "Couldn't get your exact location. Please try again outside."
-        );
-      },
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
-    );
-  };
 
   const validEmail = (s: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
 
