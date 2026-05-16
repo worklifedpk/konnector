@@ -114,9 +114,16 @@ function ChatPage() {
   }, [msgs.length]);
 
   const km = useMemo(() => {
-    if (!meRow || !peerInfo) return null;
-    return distKm({ lat: meRow.location_lat, lng: meRow.location_lng }, { lat: peerInfo.location_lat, lng: peerInfo.location_lng });
-  }, [meRow, peerInfo]);
+    if (!peerInfo) return null;
+    // Prefer live GPS for "me" — recomputes on every fix for real-time accuracy.
+    const myPoint = live
+      ? { lat: live.lat, lng: live.lng }
+      : meRow
+      ? { lat: meRow.location_lat, lng: meRow.location_lng }
+      : null;
+    if (!myPoint) return null;
+    return distKm(myPoint, { lat: peerInfo.location_lat, lng: peerInfo.location_lng });
+  }, [meRow, peerInfo, live]);
 
   const inRange = km !== null && km <= CHAT_RADIUS_KM;
 
