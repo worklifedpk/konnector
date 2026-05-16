@@ -249,6 +249,22 @@ function ChatPage() {
           </p>
         </div>
       </div>
+
+      <style>{`
+        .chat-bubble {
+          color: #1a1408;
+          background: linear-gradient(135deg,
+            color-mix(in oklab, var(--gold) 92%, white 30%) 0%,
+            color-mix(in oklab, white 70%, var(--gold) 30%) 55%,
+            color-mix(in oklab, var(--gold) 85%, white 25%) 100%);
+          border: 1px solid color-mix(in oklab, var(--gold) 45%, white 25%);
+          box-shadow: 0 8px 24px -10px color-mix(in oklab, var(--gold) 45%, transparent), inset 0 1px 0 rgba(255,255,255,0.55);
+        }
+        .chat-bubble--mine { border-color: color-mix(in oklab, var(--gold) 60%, white 20%); }
+        .chat-bubble--peer { background: linear-gradient(135deg,
+            color-mix(in oklab, white 88%, var(--gold) 15%) 0%,
+            color-mix(in oklab, white 96%, var(--gold) 8%) 100%); }
+      `}</style>
     </main>
   );
 }
