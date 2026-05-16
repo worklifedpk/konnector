@@ -1,9 +1,10 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { MapPin, Sparkles, Users, Zap, Shield, Hand, Calendar, Compass, ArrowRight, Mail, AtSign, Crown } from "lucide-react";
+import { MapPin, Sparkles, Users, Zap, Shield, Hand, Calendar, Compass, ArrowRight, Mail, AtSign, Crown, Link2, Share2 } from "lucide-react";
 import heroImg from "@/assets/hero-radar.jpg";
 import { setMode } from "@/lib/session";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/")({
   component: Landing,
