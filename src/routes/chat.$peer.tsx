@@ -208,8 +208,8 @@ function ChatPage() {
           }
           return (
             <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"} animate-float-up`}>
-              <div className={`max-w-[78%] rounded-2xl px-4 py-2.5 text-sm ${
-                mine ? "bg-gradient-royal text-primary-foreground rounded-br-sm" : "glass text-foreground rounded-bl-sm"
+              <div className={`max-w-[78%] rounded-2xl px-4 py-2.5 text-sm font-medium leading-snug chat-bubble ${
+                mine ? "chat-bubble--mine rounded-br-sm" : "chat-bubble--peer rounded-bl-sm"
               }`}>
                 {m.content}
               </div>
