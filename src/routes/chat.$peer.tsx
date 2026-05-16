@@ -65,6 +65,7 @@ function ChatPage() {
   const { peer } = Route.useParams();
   const nav = useNavigate();
   const me = getSessionId();
+  const live = useLiveLocation(true);
   const [meRow, setMeRow] = useState<Me | null>(null);
   const [peerInfo, setPeerInfo] = useState<Peer | null>(null);
   const [msgs, setMsgs] = useState<Msg[]>([]);
