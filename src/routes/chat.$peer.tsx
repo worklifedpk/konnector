@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getSessionId } from "@/lib/session";
 import { ArrowLeft, Send, MessageCircle, MapPin, Lock } from "lucide-react";
 import { distKm, formatDist } from "@/lib/dist";
+import { useLiveLocation } from "@/lib/useLiveLocation";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/chat/$peer")({
