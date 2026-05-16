@@ -258,19 +258,40 @@ function Landing() {
 
             {nearbyGroups.length > 0 && (
               <>
-                <h3 className="mt-10 mb-3 text-xs uppercase tracking-[0.2em] text-gold">Nearby groups</h3>
+                <h3 className="mt-10 mb-3 text-xs uppercase tracking-[0.2em] text-gold">
+                  Active groups within 40 km ({nearbyGroups.length})
+                </h3>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  {nearbyGroups.slice(0, 8).map((g) => (
-                    <button key={g.id} onClick={() => choose("nearby")}
-                      className="glass rounded-2xl p-4 text-left transition hover:-translate-y-1 hover:glow-gold">
-                      <p className="text-[10px] uppercase tracking-widest text-gold inline-flex items-center gap-1"><Crown className="h-3 w-3" />{g.event_type}</p>
-                      <h4 className="mt-1 font-display text-sm font-semibold truncate">{g.name}</h4>
-                      <div className="mt-2 flex items-center gap-3 text-[11px] text-muted-foreground">
-                        <span className="inline-flex items-center gap-1"><Users className="h-3 w-3" />/{g.max_size}</span>
-                        <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3 text-gold" />{g._km.toFixed(2)} km</span>
+                  {nearbyGroups.map((g) => {
+                    const url = typeof window !== "undefined"
+                      ? `${window.location.origin}/live?join=${g.id}`
+                      : `/live?join=${g.id}`;
+                    return (
+                      <div key={g.id} className="glass rounded-2xl p-4 transition hover:-translate-y-1 hover:glow-gold">
+                        <button onClick={() => nav({ to: "/live", search: { join: g.id } as any })} className="block w-full text-left">
+                          <p className="text-[10px] uppercase tracking-widest text-gold inline-flex items-center gap-1"><Crown className="h-3 w-3" />{g.event_type}</p>
+                          <h4 className="mt-1 font-display text-sm font-semibold truncate">{g.name}</h4>
+                          <div className="mt-2 flex items-center gap-3 text-[11px] text-muted-foreground">
+                            <span className="inline-flex items-center gap-1"><Users className="h-3 w-3" />/{g.max_size}</span>
+                            <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3 text-gold" />
+                              {g._km < 1 ? `${Math.round(g._km*1000)} m` : `${g._km.toFixed(2)} km`}
+                            </span>
+                          </div>
+                        </button>
+                        <div className="mt-3 flex gap-2">
+                          <button onClick={() => nav({ to: "/live", search: { join: g.id } as any })}
+                            className="flex-1 rounded-full bg-gradient-royal px-3 py-1.5 text-[11px] font-semibold text-primary-foreground">
+                            Request to join
+                          </button>
+                          <button onClick={() => shareLink(url, `Join ${g.name} on konnect`)}
+                            title="Share invite link"
+                            className="grid h-7 w-7 place-items-center rounded-full border border-gold/40 bg-card/40 text-gold hover:bg-gold/10">
+                            <Share2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </div>
-                    </button>
-                  ))}
+                    );
+                  })}
                 </div>
               </>
             )}
