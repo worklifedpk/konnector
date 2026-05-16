@@ -165,40 +165,60 @@ function Landing() {
             </div>
           </div>
 
-          {/* Animated nearby map preview */}
-          <div className="relative mx-auto aspect-square w-full max-w-md">
-            <div className="relative h-full w-full overflow-hidden rounded-3xl border border-gold/20 glass-strong">
-              <div className="absolute inset-0 grid-bg" />
-              <div className="absolute inset-0 radar-sweep opacity-30" />
-              {[0.33, 0.66, 1].map((p, i) => (
-                <div key={i} className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-gold/20"
-                  style={{ width: `${p * 80}%`, height: `${p * 80}%` }} />
-              ))}
-              <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-                <div className="grid h-12 w-12 place-items-center rounded-full bg-gradient-gold text-accent-foreground font-bold ring-pulse glow-gold">
-                  You
-                </div>
-              </div>
-              {(nearbyUsers.length ? nearbyUsers : live.slice(0, 8).map((u) => ({ ...u, _km: 0.5 + Math.random() * 5 }))).map((u, i) => {
-                const angle = (i / Math.max(1, (nearbyUsers.length || 8))) * Math.PI * 2;
-                const maxKm = Math.max(1, ...(nearbyUsers.length ? nearbyUsers.map((x) => x._km) : [5]));
-                const r = (Math.min(u._km, maxKm) / maxKm) * 38;
-                const x = 50 + Math.cos(angle) * r, y = 50 + Math.sin(angle) * r;
-                return (
-                  <button key={u.session_id || i} onClick={() => choose("nearby")}
-                    title={`${u.name} · ${u._km.toFixed(2)} km`}
-                    className="absolute -translate-x-1/2 -translate-y-1/2 transition hover:scale-125"
-                    style={{ left: `${x}%`, top: `${y}%` }}>
-                    <div className="grid h-8 w-8 place-items-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground ring-pulse glow-royal">
-                      {u.name?.[0]?.toUpperCase() ?? "?"}
+          {/* GenZ sliding DP carousel — only DPs slide, social/email button beside */}
+          <div className="relative mx-auto w-full max-w-md">
+            <div className="relative overflow-hidden rounded-3xl border border-gold/20 glass-strong p-5">
+              <div className="absolute inset-0 grid-bg opacity-50" />
+              <div className="absolute inset-0 radar-sweep opacity-20" />
+              <div className="relative">
+                <p className="mb-3 inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-gold">
+                  <span className="h-1.5 w-1.5 rounded-full bg-gold animate-pulse" />
+                  Live now · slide to peek
+                </p>
+
+                {(nearbyUsers.length ? nearbyUsers : live.slice(0, 12).map((u) => ({ ...u, _km: 0 }))).length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-gold/20 p-8 text-center text-xs text-muted-foreground">
+                    No one live yet. Be the first to drop in.
+                  </div>
+                ) : (
+                  <div className="dp-marquee">
+                    <div className="dp-track">
+                      {[...(nearbyUsers.length ? nearbyUsers : live.slice(0, 12).map((u) => ({ ...u, _km: 0 }))),
+                        ...(nearbyUsers.length ? nearbyUsers : live.slice(0, 12).map((u) => ({ ...u, _km: 0 })))]
+                        .map((u, i) => {
+                          const link = u.instagram
+                            ? (u.instagram.startsWith("http") ? u.instagram : `https://${u.instagram.replace(/^@/, "instagram.com/")}`)
+                            : u.email ? `mailto:${u.email}` : null;
+                          const isMail = !u.instagram && !!u.email;
+                          return (
+                            <div key={`${u.session_id}-${i}`} className="dp-card">
+                              <div className="dp-ring">
+                                <div className="dp-inner">
+                                  {u.name?.[0]?.toUpperCase() ?? "?"}
+                                </div>
+                                {coords && u._km > 0 && (
+                                  <span className="dp-dist">{u._km < 1 ? `${Math.round(u._km*1000)}m` : `${u._km.toFixed(1)}km`}</span>
+                                )}
+                              </div>
+                              <p className="mt-2 max-w-[78px] truncate text-center text-[11px] font-semibold text-foreground">{u.name}</p>
+                              {link && (
+                                <a href={link} target="_blank" rel="noreferrer"
+                                  title={isMail ? "Email" : "Open social"}
+                                  className="dp-check">
+                                  {isMail ? <Mail className="h-3 w-3" /> : <Link2 className="h-3 w-3" />}
+                                  <span>{isMail ? "Mail" : "Check"}</span>
+                                </a>
+                              )}
+                            </div>
+                          );
+                        })}
                     </div>
-                    <span className="mt-1 block rounded-full bg-background/80 px-1.5 py-0.5 text-[9px] text-foreground backdrop-blur">{u._km.toFixed(1)}km</span>
-                  </button>
-                );
-              })}
+                  </div>
+                )}
+              </div>
             </div>
             <p className="mt-3 text-center text-[11px] text-muted-foreground">
-              {coords ? "Tap a dot to go live and connect" : "Allow location to see real distances"}
+              {coords ? "Hover to pause · tap profile to connect" : "Allow location to see real distances"}
             </p>
           </div>
         </div>
