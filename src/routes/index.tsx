@@ -354,6 +354,41 @@ function Landing() {
         @keyframes ticker { from { transform: translateX(0); } to { transform: translateX(-50%); } }
         .ticker { animation: ticker 45s linear infinite; }
         .ticker:hover { animation-play-state: paused; }
+        @keyframes dpSlide { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+        .dp-marquee { overflow: hidden; mask-image: linear-gradient(90deg, transparent 0, #000 8%, #000 92%, transparent 100%); }
+        .dp-track { display: flex; gap: 18px; width: max-content; animation: dpSlide 35s linear infinite; }
+        .dp-marquee:hover .dp-track { animation-play-state: paused; }
+        .dp-card { position: relative; display: flex; flex-direction: column; align-items: center; width: 84px; }
+        .dp-ring {
+          position: relative; width: 76px; height: 76px; border-radius: 9999px; padding: 3px;
+          background: conic-gradient(from 120deg, var(--gold), color-mix(in oklab, var(--gold) 20%, white 60%), var(--gold));
+          box-shadow: 0 6px 22px -6px color-mix(in oklab, var(--gold) 55%, transparent);
+          transition: transform 200ms;
+        }
+        .dp-card:hover .dp-ring { transform: scale(1.07) rotate(-2deg); }
+        .dp-inner {
+          width: 100%; height: 100%; border-radius: 9999px;
+          display: grid; place-items: center;
+          background: linear-gradient(135deg, color-mix(in oklab, var(--primary) 60%, black 10%), color-mix(in oklab, var(--gold) 35%, black 30%));
+          color: #fff; font-weight: 800; font-size: 26px; letter-spacing: -0.02em;
+        }
+        .dp-dist {
+          position: absolute; top: -6px; right: -6px;
+          background: var(--background); color: var(--gold);
+          border: 1px solid color-mix(in oklab, var(--gold) 50%, transparent);
+          padding: 1px 6px; border-radius: 9999px; font-size: 9px; font-weight: 700;
+        }
+        .dp-check {
+          position: absolute; bottom: 18px; right: -6px;
+          display: inline-flex; align-items: center; gap: 3px;
+          padding: 3px 7px; border-radius: 9999px; font-size: 9px; font-weight: 700;
+          color: #1a1408;
+          background: linear-gradient(135deg, color-mix(in oklab, var(--gold) 92%, white 30%), color-mix(in oklab, white 70%, var(--gold) 30%));
+          border: 1px solid color-mix(in oklab, var(--gold) 60%, white 20%);
+          box-shadow: 0 4px 12px -4px color-mix(in oklab, var(--gold) 55%, transparent);
+          transition: transform 150ms;
+        }
+        .dp-check:hover { transform: translateY(-2px) scale(1.05); }
         .btn-gold-white {
           background: linear-gradient(135deg,
             color-mix(in oklab, var(--gold) 92%, white 30%) 0%,
