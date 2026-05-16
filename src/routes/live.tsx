@@ -466,6 +466,18 @@ function LivePage() {
                           <Hash className="h-3 w-3" /> Group chat
                         </button>
                       )}
+                      <button
+                        onClick={async () => {
+                          const url = `${window.location.origin}/live?join=${g.id}`;
+                          try {
+                            if ((navigator as any).share) await (navigator as any).share({ title: `Join ${g.name} on konnect`, url });
+                            else { await navigator.clipboard.writeText(url); toast.success("Invite link copied"); }
+                          } catch {}
+                        }}
+                        title="Share invite link"
+                        className="inline-flex items-center gap-1.5 rounded-full border border-gold/40 bg-card/40 px-3 py-1.5 text-xs font-semibold text-gold hover:bg-gold/10">
+                        <Share2 className="h-3 w-3" /> Share
+                      </button>
                     </div>
                   </div>
                 );
