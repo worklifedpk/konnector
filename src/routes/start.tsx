@@ -42,6 +42,10 @@ function StartPage() {
   const [accuracyM, setAccuracyM] = useState<number | null>(null);
   const [locationLabel, setLocationLabel] = useState<string>("");
   const [locationAddress, setLocationAddress] = useState<string>("");
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manualQuery, setManualQuery] = useState("");
+  const [manualSearching, setManualSearching] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [geoLoading, setGeoLoading] = useState(false);
   const [checkingExisting, setCheckingExisting] = useState(true);
