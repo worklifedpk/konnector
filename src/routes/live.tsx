@@ -6,7 +6,7 @@ import { distKm, formatDist } from "@/lib/dist";
 import {
   ArrowLeft, MessageCircle, MapPin, Users, Search, LogOut, Link2, Mail,
   Map as MapIcon, List, Bell, Check, X, Send, Clock, Plus, UserPlus, Crown,
-  ChevronLeft, ChevronRight, Sparkles, Hash,
+  ChevronLeft, ChevronRight, Sparkles, Hash, Share2,
 } from "lucide-react";
 import { toast } from "sonner";
 
