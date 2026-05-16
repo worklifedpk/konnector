@@ -74,9 +74,23 @@ function Landing() {
 
   const nearbyGroups = useMemo(() => {
     if (!coords) return [];
-    return groups.map((g) => ({ ...g, _km: distKm(coords, { lat: g.location_lat, lng: g.location_lng }) }))
-      .sort((a, b) => a._km - b._km).slice(0, 8);
+    return groups
+      .map((g) => ({ ...g, _km: distKm(coords, { lat: g.location_lat, lng: g.location_lng }) }))
+      .filter((g) => g._km <= 40) // active groups within 40km
+      .sort((a, b) => a._km - b._km)
+      .slice(0, 12);
   }, [groups, coords]);
+
+  const shareLink = async (url: string, title: string) => {
+    try {
+      if (typeof navigator !== "undefined" && (navigator as any).share) {
+        await (navigator as any).share({ title, url });
+      } else {
+        await navigator.clipboard.writeText(url);
+        toast.success("Link copied");
+      }
+    } catch {}
+  };
 
   // marquee items: name + masked email + social handle
   const tickerItems = live.filter((u) => u.email || u.instagram).slice(0, 12);
