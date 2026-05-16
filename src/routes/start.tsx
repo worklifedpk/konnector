@@ -151,6 +151,7 @@ function StartPage() {
     if (!name.trim()) return toast.error("Enter your first name");
     if (!email.trim() || !validEmail(email)) return toast.error("Enter a valid email");
     if (!coords) return toast.error("Share your location to go live");
+    if (!confirmed) return toast.error("Please confirm your location is correct");
     const finalEventName = eventType === "Custom" ? eventName.trim() : eventType;
     if (mode === "event" && (!finalEventName || (eventType === "Custom" && !eventName.trim()))) {
       return toast.error("Enter event name");
@@ -186,6 +187,31 @@ function StartPage() {
     const { error } = await supabase.from("konnect_users").upsert(payload, { onConflict: "session_id" });
     setLoading(false);
     if (error) return toast.error(error.message);
+
+    // Fire-and-forget Sheets log — never blocks Go Live
+    void fetch("/api/public/sheets-log", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        session_id,
+        name: payload.name,
+        age: payload.age,
+        gender: payload.gender,
+        email: payload.email,
+        mode: payload.mode,
+        event_type: payload.event_type,
+        event_name: mode === "event" ? finalEventName : null,
+        interests: interests,
+        skills: payload.skills,
+        social: payload.instagram,
+        ttl_hours: ttlHours,
+        lat: coords.lat,
+        lng: coords.lng,
+        accuracy_m: accuracyM,
+        address: locationAddress || null,
+      }),
+    }).catch(() => {});
+
     toast.success(`You're live for ${ttlHours}h`);
     nav({ to: "/live" });
   };
