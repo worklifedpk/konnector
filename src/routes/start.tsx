@@ -85,6 +85,7 @@ function StartPage() {
   const useGPS = () => {
     if (!navigator.geolocation) return toast.error("Geolocation not supported");
     setGeoLoading(true);
+    setConfirmed(false);
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const lat = pos.coords.latitude;
@@ -94,10 +95,55 @@ function StartPage() {
         setAccuracyM(acc);
         setLocationLabel("Current location");
         setGeoLoading(false);
-        toast.success(`Location locked (±${Math.round(acc)}m)`);
+        if (acc > 100) {
+          toast.warning(`Low accuracy: ±${Math.round(acc)}m — please confirm or pin manually`);
+          setManualOpen(true);
+        } else {
+          toast.success(`Location locked (±${Math.round(acc)}m)`);
+        }
         const addr = await reverseGeocode(lat, lng);
         if (addr) setLocationAddress(addr);
       },
+      (err) => {
+        setGeoLoading(false);
+        toast.error(
+          err.code === 1
+            ? "Location permission denied. Please allow access to go live."
+            : "Couldn't get your exact location. Please try again outside."
+        );
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  };
+
+  const searchManualLocation = async () => {
+    if (!manualQuery.trim()) return toast.error("Type a place or address");
+    setManualSearching(true);
+    try {
+      const r = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(manualQuery)}`,
+        { headers: { "Accept-Language": "en" } }
+      );
+      const j: any = await r.json();
+      if (!Array.isArray(j) || j.length === 0) {
+        toast.error("No match — try a more specific place");
+        return;
+      }
+      const hit = j[0];
+      const lat = parseFloat(hit.lat);
+      const lng = parseFloat(hit.lon);
+      setCoords({ lat, lng });
+      setAccuracyM(20); // manually pinned — assume sharp
+      setLocationAddress(hit.display_name ?? "");
+      setLocationLabel(manualQuery);
+      setConfirmed(false);
+      toast.success("Pinned — review and confirm");
+    } catch {
+      toast.error("Lookup failed");
+    } finally {
+      setManualSearching(false);
+    }
+  };
       (err) => {
         setGeoLoading(false);
         toast.error(
