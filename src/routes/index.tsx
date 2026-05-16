@@ -1,9 +1,10 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { MapPin, Sparkles, Users, Zap, Shield, Hand, Calendar, Compass, ArrowRight, Mail, AtSign, Crown } from "lucide-react";
+import { MapPin, Sparkles, Users, Zap, Shield, Hand, Calendar, Compass, ArrowRight, Mail, AtSign, Crown, Link2, Share2 } from "lucide-react";
 import heroImg from "@/assets/hero-radar.jpg";
 import { setMode } from "@/lib/session";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/")({
   component: Landing,
@@ -73,9 +74,23 @@ function Landing() {
 
   const nearbyGroups = useMemo(() => {
     if (!coords) return [];
-    return groups.map((g) => ({ ...g, _km: distKm(coords, { lat: g.location_lat, lng: g.location_lng }) }))
-      .sort((a, b) => a._km - b._km).slice(0, 8);
+    return groups
+      .map((g) => ({ ...g, _km: distKm(coords, { lat: g.location_lat, lng: g.location_lng }) }))
+      .filter((g) => g._km <= 40) // active groups within 40km
+      .sort((a, b) => a._km - b._km)
+      .slice(0, 12);
   }, [groups, coords]);
+
+  const shareLink = async (url: string, title: string) => {
+    try {
+      if (typeof navigator !== "undefined" && (navigator as any).share) {
+        await (navigator as any).share({ title, url });
+      } else {
+        await navigator.clipboard.writeText(url);
+        toast.success("Link copied");
+      }
+    } catch {}
+  };
 
   // marquee items: name + masked email + social handle
   const tickerItems = live.filter((u) => u.email || u.instagram).slice(0, 12);
@@ -150,40 +165,60 @@ function Landing() {
             </div>
           </div>
 
-          {/* Animated nearby map preview */}
-          <div className="relative mx-auto aspect-square w-full max-w-md">
-            <div className="relative h-full w-full overflow-hidden rounded-3xl border border-gold/20 glass-strong">
-              <div className="absolute inset-0 grid-bg" />
-              <div className="absolute inset-0 radar-sweep opacity-30" />
-              {[0.33, 0.66, 1].map((p, i) => (
-                <div key={i} className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-gold/20"
-                  style={{ width: `${p * 80}%`, height: `${p * 80}%` }} />
-              ))}
-              <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-                <div className="grid h-12 w-12 place-items-center rounded-full bg-gradient-gold text-accent-foreground font-bold ring-pulse glow-gold">
-                  You
-                </div>
-              </div>
-              {(nearbyUsers.length ? nearbyUsers : live.slice(0, 8).map((u) => ({ ...u, _km: 0.5 + Math.random() * 5 }))).map((u, i) => {
-                const angle = (i / Math.max(1, (nearbyUsers.length || 8))) * Math.PI * 2;
-                const maxKm = Math.max(1, ...(nearbyUsers.length ? nearbyUsers.map((x) => x._km) : [5]));
-                const r = (Math.min(u._km, maxKm) / maxKm) * 38;
-                const x = 50 + Math.cos(angle) * r, y = 50 + Math.sin(angle) * r;
-                return (
-                  <button key={u.session_id || i} onClick={() => choose("nearby")}
-                    title={`${u.name} · ${u._km.toFixed(2)} km`}
-                    className="absolute -translate-x-1/2 -translate-y-1/2 transition hover:scale-125"
-                    style={{ left: `${x}%`, top: `${y}%` }}>
-                    <div className="grid h-8 w-8 place-items-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground ring-pulse glow-royal">
-                      {u.name?.[0]?.toUpperCase() ?? "?"}
+          {/* GenZ sliding DP carousel — only DPs slide, social/email button beside */}
+          <div className="relative mx-auto w-full max-w-md">
+            <div className="relative overflow-hidden rounded-3xl border border-gold/20 glass-strong p-5">
+              <div className="absolute inset-0 grid-bg opacity-50" />
+              <div className="absolute inset-0 radar-sweep opacity-20" />
+              <div className="relative">
+                <p className="mb-3 inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-gold">
+                  <span className="h-1.5 w-1.5 rounded-full bg-gold animate-pulse" />
+                  Live now · slide to peek
+                </p>
+
+                {(nearbyUsers.length ? nearbyUsers : live.slice(0, 12).map((u) => ({ ...u, _km: 0 }))).length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-gold/20 p-8 text-center text-xs text-muted-foreground">
+                    No one live yet. Be the first to drop in.
+                  </div>
+                ) : (
+                  <div className="dp-marquee">
+                    <div className="dp-track">
+                      {[...(nearbyUsers.length ? nearbyUsers : live.slice(0, 12).map((u) => ({ ...u, _km: 0 }))),
+                        ...(nearbyUsers.length ? nearbyUsers : live.slice(0, 12).map((u) => ({ ...u, _km: 0 })))]
+                        .map((u, i) => {
+                          const link = u.instagram
+                            ? (u.instagram.startsWith("http") ? u.instagram : `https://${u.instagram.replace(/^@/, "instagram.com/")}`)
+                            : u.email ? `mailto:${u.email}` : null;
+                          const isMail = !u.instagram && !!u.email;
+                          return (
+                            <div key={`${u.session_id}-${i}`} className="dp-card">
+                              <div className="dp-ring">
+                                <div className="dp-inner">
+                                  {u.name?.[0]?.toUpperCase() ?? "?"}
+                                </div>
+                                {coords && u._km > 0 && (
+                                  <span className="dp-dist">{u._km < 1 ? `${Math.round(u._km*1000)}m` : `${u._km.toFixed(1)}km`}</span>
+                                )}
+                              </div>
+                              <p className="mt-2 max-w-[78px] truncate text-center text-[11px] font-semibold text-foreground">{u.name}</p>
+                              {link && (
+                                <a href={link} target="_blank" rel="noreferrer"
+                                  title={isMail ? "Email" : "Open social"}
+                                  className="dp-check">
+                                  {isMail ? <Mail className="h-3 w-3" /> : <Link2 className="h-3 w-3" />}
+                                  <span>{isMail ? "Mail" : "Check"}</span>
+                                </a>
+                              )}
+                            </div>
+                          );
+                        })}
                     </div>
-                    <span className="mt-1 block rounded-full bg-background/80 px-1.5 py-0.5 text-[9px] text-foreground backdrop-blur">{u._km.toFixed(1)}km</span>
-                  </button>
-                );
-              })}
+                  </div>
+                )}
+              </div>
             </div>
             <p className="mt-3 text-center text-[11px] text-muted-foreground">
-              {coords ? "Tap a dot to go live and connect" : "Allow location to see real distances"}
+              {coords ? "Hover to pause · tap profile to connect" : "Allow location to see real distances"}
             </p>
           </div>
         </div>
@@ -223,19 +258,40 @@ function Landing() {
 
             {nearbyGroups.length > 0 && (
               <>
-                <h3 className="mt-10 mb-3 text-xs uppercase tracking-[0.2em] text-gold">Nearby groups</h3>
+                <h3 className="mt-10 mb-3 text-xs uppercase tracking-[0.2em] text-gold">
+                  Active groups within 40 km ({nearbyGroups.length})
+                </h3>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  {nearbyGroups.slice(0, 8).map((g) => (
-                    <button key={g.id} onClick={() => choose("nearby")}
-                      className="glass rounded-2xl p-4 text-left transition hover:-translate-y-1 hover:glow-gold">
-                      <p className="text-[10px] uppercase tracking-widest text-gold inline-flex items-center gap-1"><Crown className="h-3 w-3" />{g.event_type}</p>
-                      <h4 className="mt-1 font-display text-sm font-semibold truncate">{g.name}</h4>
-                      <div className="mt-2 flex items-center gap-3 text-[11px] text-muted-foreground">
-                        <span className="inline-flex items-center gap-1"><Users className="h-3 w-3" />/{g.max_size}</span>
-                        <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3 text-gold" />{g._km.toFixed(2)} km</span>
+                  {nearbyGroups.map((g) => {
+                    const url = typeof window !== "undefined"
+                      ? `${window.location.origin}/live?join=${g.id}`
+                      : `/live?join=${g.id}`;
+                    return (
+                      <div key={g.id} className="glass rounded-2xl p-4 transition hover:-translate-y-1 hover:glow-gold">
+                        <button onClick={() => nav({ to: "/live", search: { join: g.id } as any })} className="block w-full text-left">
+                          <p className="text-[10px] uppercase tracking-widest text-gold inline-flex items-center gap-1"><Crown className="h-3 w-3" />{g.event_type}</p>
+                          <h4 className="mt-1 font-display text-sm font-semibold truncate">{g.name}</h4>
+                          <div className="mt-2 flex items-center gap-3 text-[11px] text-muted-foreground">
+                            <span className="inline-flex items-center gap-1"><Users className="h-3 w-3" />/{g.max_size}</span>
+                            <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3 text-gold" />
+                              {g._km < 1 ? `${Math.round(g._km*1000)} m` : `${g._km.toFixed(2)} km`}
+                            </span>
+                          </div>
+                        </button>
+                        <div className="mt-3 flex gap-2">
+                          <button onClick={() => nav({ to: "/live", search: { join: g.id } as any })}
+                            className="flex-1 rounded-full bg-gradient-royal px-3 py-1.5 text-[11px] font-semibold text-primary-foreground">
+                            Request to join
+                          </button>
+                          <button onClick={() => shareLink(url, `Join ${g.name} on konnect`)}
+                            title="Share invite link"
+                            className="grid h-7 w-7 place-items-center rounded-full border border-gold/40 bg-card/40 text-gold hover:bg-gold/10">
+                            <Share2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </div>
-                    </button>
-                  ))}
+                    );
+                  })}
                 </div>
               </>
             )}
@@ -298,6 +354,41 @@ function Landing() {
         @keyframes ticker { from { transform: translateX(0); } to { transform: translateX(-50%); } }
         .ticker { animation: ticker 45s linear infinite; }
         .ticker:hover { animation-play-state: paused; }
+        @keyframes dpSlide { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+        .dp-marquee { overflow: hidden; mask-image: linear-gradient(90deg, transparent 0, #000 8%, #000 92%, transparent 100%); }
+        .dp-track { display: flex; gap: 18px; width: max-content; animation: dpSlide 35s linear infinite; }
+        .dp-marquee:hover .dp-track { animation-play-state: paused; }
+        .dp-card { position: relative; display: flex; flex-direction: column; align-items: center; width: 84px; }
+        .dp-ring {
+          position: relative; width: 76px; height: 76px; border-radius: 9999px; padding: 3px;
+          background: conic-gradient(from 120deg, var(--gold), color-mix(in oklab, var(--gold) 20%, white 60%), var(--gold));
+          box-shadow: 0 6px 22px -6px color-mix(in oklab, var(--gold) 55%, transparent);
+          transition: transform 200ms;
+        }
+        .dp-card:hover .dp-ring { transform: scale(1.07) rotate(-2deg); }
+        .dp-inner {
+          width: 100%; height: 100%; border-radius: 9999px;
+          display: grid; place-items: center;
+          background: linear-gradient(135deg, color-mix(in oklab, var(--primary) 60%, black 10%), color-mix(in oklab, var(--gold) 35%, black 30%));
+          color: #fff; font-weight: 800; font-size: 26px; letter-spacing: -0.02em;
+        }
+        .dp-dist {
+          position: absolute; top: -6px; right: -6px;
+          background: var(--background); color: var(--gold);
+          border: 1px solid color-mix(in oklab, var(--gold) 50%, transparent);
+          padding: 1px 6px; border-radius: 9999px; font-size: 9px; font-weight: 700;
+        }
+        .dp-check {
+          position: absolute; bottom: 18px; right: -6px;
+          display: inline-flex; align-items: center; gap: 3px;
+          padding: 3px 7px; border-radius: 9999px; font-size: 9px; font-weight: 700;
+          color: #1a1408;
+          background: linear-gradient(135deg, color-mix(in oklab, var(--gold) 92%, white 30%), color-mix(in oklab, white 70%, var(--gold) 30%));
+          border: 1px solid color-mix(in oklab, var(--gold) 60%, white 20%);
+          box-shadow: 0 4px 12px -4px color-mix(in oklab, var(--gold) 55%, transparent);
+          transition: transform 150ms;
+        }
+        .dp-check:hover { transform: translateY(-2px) scale(1.05); }
         .btn-gold-white {
           background: linear-gradient(135deg,
             color-mix(in oklab, var(--gold) 92%, white 30%) 0%,

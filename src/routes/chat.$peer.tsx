@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getSessionId } from "@/lib/session";
 import { ArrowLeft, Send, MessageCircle, MapPin, Lock } from "lucide-react";
 import { distKm, formatDist } from "@/lib/dist";
+import { useLiveLocation } from "@/lib/useLiveLocation";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/chat/$peer")({
@@ -64,6 +65,7 @@ function ChatPage() {
   const { peer } = Route.useParams();
   const nav = useNavigate();
   const me = getSessionId();
+  const live = useLiveLocation(true);
   const [meRow, setMeRow] = useState<Me | null>(null);
   const [peerInfo, setPeerInfo] = useState<Peer | null>(null);
   const [msgs, setMsgs] = useState<Msg[]>([]);
@@ -112,9 +114,16 @@ function ChatPage() {
   }, [msgs.length]);
 
   const km = useMemo(() => {
-    if (!meRow || !peerInfo) return null;
-    return distKm({ lat: meRow.location_lat, lng: meRow.location_lng }, { lat: peerInfo.location_lat, lng: peerInfo.location_lng });
-  }, [meRow, peerInfo]);
+    if (!peerInfo) return null;
+    // Prefer live GPS for "me" — recomputes on every fix for real-time accuracy.
+    const myPoint = live
+      ? { lat: live.lat, lng: live.lng }
+      : meRow
+      ? { lat: meRow.location_lat, lng: meRow.location_lng }
+      : null;
+    if (!myPoint) return null;
+    return distKm(myPoint, { lat: peerInfo.location_lat, lng: peerInfo.location_lng });
+  }, [meRow, peerInfo, live]);
 
   const inRange = km !== null && km <= CHAT_RADIUS_KM;
 
@@ -199,8 +208,8 @@ function ChatPage() {
           }
           return (
             <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"} animate-float-up`}>
-              <div className={`max-w-[78%] rounded-2xl px-4 py-2.5 text-sm ${
-                mine ? "bg-gradient-royal text-primary-foreground rounded-br-sm" : "glass text-foreground rounded-bl-sm"
+              <div className={`max-w-[78%] rounded-2xl px-4 py-2.5 text-sm font-medium leading-snug chat-bubble ${
+                mine ? "chat-bubble--mine rounded-br-sm" : "chat-bubble--peer rounded-bl-sm"
               }`}>
                 {m.content}
               </div>
@@ -240,6 +249,22 @@ function ChatPage() {
           </p>
         </div>
       </div>
+
+      <style>{`
+        .chat-bubble {
+          color: #1a1408;
+          background: linear-gradient(135deg,
+            color-mix(in oklab, var(--gold) 92%, white 30%) 0%,
+            color-mix(in oklab, white 70%, var(--gold) 30%) 55%,
+            color-mix(in oklab, var(--gold) 85%, white 25%) 100%);
+          border: 1px solid color-mix(in oklab, var(--gold) 45%, white 25%);
+          box-shadow: 0 8px 24px -10px color-mix(in oklab, var(--gold) 45%, transparent), inset 0 1px 0 rgba(255,255,255,0.55);
+        }
+        .chat-bubble--mine { border-color: color-mix(in oklab, var(--gold) 60%, white 20%); }
+        .chat-bubble--peer { background: linear-gradient(135deg,
+            color-mix(in oklab, white 88%, var(--gold) 15%) 0%,
+            color-mix(in oklab, white 96%, var(--gold) 8%) 100%); }
+      `}</style>
     </main>
   );
 }

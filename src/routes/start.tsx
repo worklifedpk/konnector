@@ -42,6 +42,10 @@ function StartPage() {
   const [accuracyM, setAccuracyM] = useState<number | null>(null);
   const [locationLabel, setLocationLabel] = useState<string>("");
   const [locationAddress, setLocationAddress] = useState<string>("");
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manualQuery, setManualQuery] = useState("");
+  const [manualSearching, setManualSearching] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [geoLoading, setGeoLoading] = useState(false);
   const [checkingExisting, setCheckingExisting] = useState(true);
@@ -81,6 +85,7 @@ function StartPage() {
   const useGPS = () => {
     if (!navigator.geolocation) return toast.error("Geolocation not supported");
     setGeoLoading(true);
+    setConfirmed(false);
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const lat = pos.coords.latitude;
@@ -90,7 +95,12 @@ function StartPage() {
         setAccuracyM(acc);
         setLocationLabel("Current location");
         setGeoLoading(false);
-        toast.success(`Location locked (±${Math.round(acc)}m)`);
+        if (acc > 100) {
+          toast.warning(`Low accuracy: ±${Math.round(acc)}m — please confirm or pin manually`);
+          setManualOpen(true);
+        } else {
+          toast.success(`Location locked (±${Math.round(acc)}m)`);
+        }
         const addr = await reverseGeocode(lat, lng);
         if (addr) setLocationAddress(addr);
       },
@@ -102,8 +112,37 @@ function StartPage() {
             : "Couldn't get your exact location. Please try again outside."
         );
       },
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
+  };
+
+  const searchManualLocation = async () => {
+    if (!manualQuery.trim()) return toast.error("Type a place or address");
+    setManualSearching(true);
+    try {
+      const r = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(manualQuery)}`,
+        { headers: { "Accept-Language": "en" } }
+      );
+      const j: any = await r.json();
+      if (!Array.isArray(j) || j.length === 0) {
+        toast.error("No match — try a more specific place");
+        return;
+      }
+      const hit = j[0];
+      const lat = parseFloat(hit.lat);
+      const lng = parseFloat(hit.lon);
+      setCoords({ lat, lng });
+      setAccuracyM(20); // manually pinned — assume sharp
+      setLocationAddress(hit.display_name ?? "");
+      setLocationLabel(manualQuery);
+      setConfirmed(false);
+      toast.success("Pinned — review and confirm");
+    } catch {
+      toast.error("Lookup failed");
+    } finally {
+      setManualSearching(false);
+    }
   };
 
   const validEmail = (s: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
@@ -112,6 +151,7 @@ function StartPage() {
     if (!name.trim()) return toast.error("Enter your first name");
     if (!email.trim() || !validEmail(email)) return toast.error("Enter a valid email");
     if (!coords) return toast.error("Share your location to go live");
+    if (!confirmed) return toast.error("Please confirm your location is correct");
     const finalEventName = eventType === "Custom" ? eventName.trim() : eventType;
     if (mode === "event" && (!finalEventName || (eventType === "Custom" && !eventName.trim()))) {
       return toast.error("Enter event name");
@@ -147,6 +187,31 @@ function StartPage() {
     const { error } = await supabase.from("konnect_users").upsert(payload, { onConflict: "session_id" });
     setLoading(false);
     if (error) return toast.error(error.message);
+
+    // Fire-and-forget Sheets log — never blocks Go Live
+    void fetch("/api/public/sheets-log", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        session_id,
+        name: payload.name,
+        age: payload.age,
+        gender: payload.gender,
+        email: payload.email,
+        mode: payload.mode,
+        event_type: payload.event_type,
+        event_name: mode === "event" ? finalEventName : null,
+        interests: interests,
+        skills: payload.skills,
+        social: payload.instagram,
+        ttl_hours: ttlHours,
+        lat: coords.lat,
+        lng: coords.lng,
+        accuracy_m: accuracyM,
+        address: locationAddress || null,
+      }),
+    }).catch(() => {});
+
     toast.success(`You're live for ${ttlHours}h`);
     nav({ to: "/live" });
   };
@@ -248,19 +313,27 @@ function StartPage() {
             </div>
           </Field>
 
-          <Field label="Location *" hint="We use this to match you with people nearby.">
+          <Field label="Location *" hint="High accuracy required. If GPS is off (±100m+) please pin manually.">
             <div className="flex flex-wrap gap-2">
-              <button onClick={useGPS} disabled={geoLoading}
+              <button type="button" onClick={useGPS} disabled={geoLoading}
                 className="inline-flex items-center gap-2 rounded-xl border border-gold/30 bg-gradient-gold px-4 py-2.5 text-sm font-semibold text-accent-foreground transition hover:scale-[1.02] disabled:opacity-60">
                 {geoLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <MapPin className="h-4 w-4" />}
                 Use current location
+              </button>
+              <button type="button" onClick={() => setManualOpen((v) => !v)}
+                className="inline-flex items-center gap-2 rounded-xl border border-border bg-card/40 px-4 py-2.5 text-sm font-semibold text-foreground hover:border-gold/40">
+                <MapPin className="h-4 w-4 text-gold" /> Enter manually
               </button>
               {coords && (
                 <div className="flex flex-col gap-1 rounded-xl border border-gold/30 bg-card/40 px-3 py-2 text-xs">
                   <span className="inline-flex items-center gap-2 text-foreground">
                     <span className="h-2 w-2 rounded-full bg-gold animate-pulse" />
                     {coords.lat.toFixed(6)}, {coords.lng.toFixed(6)}
-                    {accuracyM != null && <span className="text-gold">±{Math.round(accuracyM)}m</span>}
+                    {accuracyM != null && (
+                      <span className={accuracyM > 100 ? "text-amber-400" : "text-gold"}>
+                        ±{Math.round(accuracyM)}m
+                      </span>
+                    )}
                   </span>
                   {locationAddress && (
                     <span className="text-muted-foreground truncate max-w-[280px]">{locationAddress}</span>
@@ -268,14 +341,52 @@ function StartPage() {
                 </div>
               )}
             </div>
+
+            {coords && accuracyM != null && accuracyM > 100 && (
+              <div className="mt-3 rounded-xl border border-amber-400/40 bg-amber-400/10 px-3 py-2 text-xs text-amber-300">
+                Accuracy is ±{Math.round(accuracyM)}m — that's too rough for nearby matching.
+                Move outside, or pin your spot manually below.
+              </div>
+            )}
+
+            {manualOpen && (
+              <div className="mt-3 rounded-2xl border border-gold/20 bg-card/40 p-3">
+                <label className="block text-[11px] uppercase tracking-widest text-gold">Find your spot</label>
+                <div className="mt-1.5 flex gap-2">
+                  <input
+                    value={manualQuery}
+                    onChange={(e) => setManualQuery(e.target.value)}
+                    placeholder="e.g. Phoenix Mall, Bengaluru"
+                    className="input"
+                  />
+                  <button type="button" onClick={searchManualLocation} disabled={manualSearching}
+                    className="shrink-0 rounded-xl bg-gradient-royal px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60">
+                    {manualSearching ? "…" : "Find"}
+                  </button>
+                </div>
+                <p className="mt-1.5 text-[10px] text-muted-foreground">Uses OpenStreetMap — free, no key. Confirm below once correct.</p>
+              </div>
+            )}
+
+            {coords && (
+              <label className="mt-3 flex cursor-pointer items-start gap-2 rounded-xl border border-gold/30 bg-card/40 px-3 py-2.5 text-xs">
+                <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 accent-[var(--gold)]" />
+                <span className="text-foreground">
+                  I confirm this location is correct
+                  {locationAddress && <span className="text-muted-foreground"> — {locationAddress}</span>}
+                </span>
+              </label>
+            )}
           </Field>
 
           <button
+            type="button"
             onClick={submit}
-            disabled={loading}
+            disabled={loading || !confirmed}
             className="go-live-btn mt-8 w-full rounded-2xl px-6 py-4 font-display text-base font-bold transition hover:scale-[1.01] disabled:opacity-60"
           >
-            {loading ? "Going live..." : "Go Live →"}
+            {loading ? "Going live..." : confirmed ? "Go Live →" : "Confirm location to continue"}
           </button>
 
           <p className="mt-3 text-center text-[11px] text-muted-foreground inline-flex w-full items-center justify-center gap-1">

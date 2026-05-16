@@ -13,6 +13,7 @@ import { Route as StartRouteImport } from './routes/start'
 import { Route as LiveRouteImport } from './routes/live'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ChatPeerRouteImport } from './routes/chat.$peer'
+import { Route as ApiPublicSheetsLogRouteImport } from './routes/api/public/sheets-log'
 
 const StartRoute = StartRouteImport.update({
   id: '/start',
@@ -34,18 +35,25 @@ const ChatPeerRoute = ChatPeerRouteImport.update({
   path: '/chat/$peer',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicSheetsLogRoute = ApiPublicSheetsLogRouteImport.update({
+  id: '/api/public/sheets-log',
+  path: '/api/public/sheets-log',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/live': typeof LiveRoute
   '/start': typeof StartRoute
   '/chat/$peer': typeof ChatPeerRoute
+  '/api/public/sheets-log': typeof ApiPublicSheetsLogRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/live': typeof LiveRoute
   '/start': typeof StartRoute
   '/chat/$peer': typeof ChatPeerRoute
+  '/api/public/sheets-log': typeof ApiPublicSheetsLogRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -53,13 +61,20 @@ export interface FileRoutesById {
   '/live': typeof LiveRoute
   '/start': typeof StartRoute
   '/chat/$peer': typeof ChatPeerRoute
+  '/api/public/sheets-log': typeof ApiPublicSheetsLogRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/live' | '/start' | '/chat/$peer'
+  fullPaths: '/' | '/live' | '/start' | '/chat/$peer' | '/api/public/sheets-log'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/live' | '/start' | '/chat/$peer'
-  id: '__root__' | '/' | '/live' | '/start' | '/chat/$peer'
+  to: '/' | '/live' | '/start' | '/chat/$peer' | '/api/public/sheets-log'
+  id:
+    | '__root__'
+    | '/'
+    | '/live'
+    | '/start'
+    | '/chat/$peer'
+    | '/api/public/sheets-log'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -67,6 +82,7 @@ export interface RootRouteChildren {
   LiveRoute: typeof LiveRoute
   StartRoute: typeof StartRoute
   ChatPeerRoute: typeof ChatPeerRoute
+  ApiPublicSheetsLogRoute: typeof ApiPublicSheetsLogRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -99,6 +115,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChatPeerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/sheets-log': {
+      id: '/api/public/sheets-log'
+      path: '/api/public/sheets-log'
+      fullPath: '/api/public/sheets-log'
+      preLoaderRoute: typeof ApiPublicSheetsLogRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -107,6 +130,7 @@ const rootRouteChildren: RootRouteChildren = {
   LiveRoute: LiveRoute,
   StartRoute: StartRoute,
   ChatPeerRoute: ChatPeerRoute,
+  ApiPublicSheetsLogRoute: ApiPublicSheetsLogRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
