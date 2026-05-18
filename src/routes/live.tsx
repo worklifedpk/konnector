@@ -6,7 +6,7 @@ import { distKm, formatDist } from "@/lib/dist";
 import {
   ArrowLeft, MessageCircle, MapPin, Users, Search, LogOut, Link2, Mail,
   Map as MapIcon, List, Bell, Check, X, Send, Clock, Plus, UserPlus, Crown,
-  ChevronLeft, ChevronRight, Sparkles, Hash, Share2,
+  ChevronLeft, ChevronRight, Sparkles, Hash, Share2, Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -70,6 +70,14 @@ function LivePage() {
   const [showCreate, setShowCreate] = useState(false);
   const [profileOpen, setProfileOpen] = useState<LiveUser | null>(null);
   const [chatGroup, setChatGroup] = useState<Group | null>(null);
+  const [pending, setPending] = useState<Set<string>>(new Set());
+  const isPending = (k: string) => pending.has(k);
+  const withPending = async <T,>(k: string, fn: () => Promise<T>): Promise<T | undefined> => {
+    if (pending.has(k)) return;
+    setPending((s) => { const n = new Set(s); n.add(k); return n; });
+    try { return await fn(); }
+    finally { setPending((s) => { const n = new Set(s); n.delete(k); return n; }); }
+  };
   const sliderRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -159,14 +167,15 @@ function LivePage() {
     toast.success("Request sent");
   };
 
-  const respond = async (req: Req, status: "accepted" | "declined") => {
-    const { error } = await sb.from("konnect_requests").update({ status }).eq("id", req.id);
-    if (error) return toast.error(error.message);
-    if (status === "accepted") {
-      toast.success("Connected — opening chat");
-      nav({ to: "/chat/$peer", params: { peer: req.from_session } });
-    }
-  };
+  const respond = async (req: Req, status: "accepted" | "declined") =>
+    withPending(`req:${req.id}`, async () => {
+      const { error } = await sb.from("konnect_requests").update({ status }).eq("id", req.id);
+      if (error) return toast.error(error.message);
+      if (status === "accepted") {
+        toast.success("Connected — opening chat");
+        nav({ to: "/chat/$peer", params: { peer: req.from_session } });
+      }
+    });
 
   const incomingPending = requests.filter((r) => r.to_session === me && r.status === "pending");
   const acceptedPeers = requests.filter((r) => r.status === "accepted");
@@ -199,36 +208,37 @@ function LivePage() {
     r.status === "pending" && r.kind === "invite" && r.to_session === me
   );
 
-  const requestJoinGroup = async (gid: string) => {
-    const { error } = await sb.from("konnect_group_requests").insert({ group_id: gid, from_session: me, kind: "join", status: "pending" });
-    if (error) return toast.error(error.message);
-    toast.success("Join request sent");
-  };
+  const requestJoinGroup = async (gid: string) =>
+    withPending(`gjoin:${gid}`, async () => {
+      const { error } = await sb.from("konnect_group_requests").insert({ group_id: gid, from_session: me, kind: "join", status: "pending" });
+      if (error) return toast.error(error.message);
+      toast.success("Join request sent");
+    });
 
-  const inviteToGroup = async (gid: string, peer: string) => {
-    // prevent duplicates
-    const dup = groupReqs.find((r) => r.group_id === gid && r.to_session === peer && r.kind === "invite" && r.status !== "declined");
-    if (dup) return toast("Already invited");
-    const { error } = await sb.from("konnect_group_requests").insert({ group_id: gid, from_session: me, to_session: peer, kind: "invite", status: "pending" });
-    if (error) return toast.error(error.message);
-    toast.success("Invite sent");
-  };
+  const inviteToGroup = async (gid: string, peer: string) =>
+    withPending(`ginvite:${gid}:${peer}`, async () => {
+      const dup = groupReqs.find((r) => r.group_id === gid && r.to_session === peer && r.kind === "invite" && r.status !== "declined");
+      if (dup) return toast("Already invited");
+      const { error } = await sb.from("konnect_group_requests").insert({ group_id: gid, from_session: me, to_session: peer, kind: "invite", status: "pending" });
+      if (error) return toast.error(error.message);
+      toast.success("Invite sent");
+    });
 
-  const respondGroupReq = async (req: GroupReq, status: "accepted" | "declined") => {
-    const { error } = await sb.from("konnect_group_requests").update({ status }).eq("id", req.id);
-    if (error) return toast.error(error.message);
-    if (status === "accepted") {
-      const g = groups.find((x) => x.id === req.group_id);
-      if (g && memberCount(g.id) >= g.max_size) {
-        toast.error("Group is full");
-        return;
+  const respondGroupReq = async (req: GroupReq, status: "accepted" | "declined") =>
+    withPending(`greq:${req.id}`, async () => {
+      const { error } = await sb.from("konnect_group_requests").update({ status }).eq("id", req.id);
+      if (error) return toast.error(error.message);
+      if (status === "accepted") {
+        const g = groups.find((x) => x.id === req.group_id);
+        if (g && memberCount(g.id) >= g.max_size) {
+          toast.error("Group is full");
+          return;
+        }
+        const joinerSession = req.kind === "invite" ? (req.to_session ?? me) : req.from_session;
+        await sb.from("konnect_group_members").insert({ group_id: req.group_id, session_id: joinerSession });
+        toast.success(req.kind === "invite" ? "Joined group" : "Member added");
       }
-      // For invites the joining session is to_session; for join requests it's from_session
-      const joinerSession = req.kind === "invite" ? (req.to_session ?? me) : req.from_session;
-      await sb.from("konnect_group_members").insert({ group_id: req.group_id, session_id: joinerSession });
-      toast.success(req.kind === "invite" ? "Joined group" : "Member added");
-    }
-  };
+    });
 
   if (!meRow) return null;
   const isEventMode = meRow.mode.startsWith("event:");
@@ -398,13 +408,13 @@ function LivePage() {
                             <p className="text-sm font-semibold truncate">{u.name} → {g.name}</p>
                             <p className="text-[11px] text-muted-foreground">{memberCount(g.id)}/{g.max_size} members</p>
                           </div>
-                          <button onClick={() => respondGroupReq(r, "declined")}
-                            className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:text-destructive">
-                            <X className="h-4 w-4" />
+                          <button onClick={() => respondGroupReq(r, "declined")} disabled={isPending(`greq:${r.id}`)}
+                            className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:text-destructive disabled:opacity-50">
+                            {isPending(`greq:${r.id}`) ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
                           </button>
-                          <button onClick={() => respondGroupReq(r, "accepted")}
-                            className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-gold text-accent-foreground">
-                            <Check className="h-4 w-4" />
+                          <button onClick={() => respondGroupReq(r, "accepted")} disabled={isPending(`greq:${r.id}`)}
+                            className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-gold text-accent-foreground disabled:opacity-50">
+                            {isPending(`greq:${r.id}`) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                           </button>
                         </div>
                       </div>
@@ -455,9 +465,10 @@ function LivePage() {
                       ) : full ? (
                         <span className="inline-block rounded-full border border-border bg-card/40 px-3 py-1.5 text-xs text-muted-foreground">Full</span>
                       ) : (
-                        <button onClick={() => requestJoinGroup(g.id)}
-                          className="inline-flex items-center gap-2 rounded-full bg-gradient-royal px-4 py-1.5 text-xs font-semibold text-primary-foreground glow-royal transition hover:scale-[1.02]">
-                          <Send className="h-3 w-3" /> Request to Join
+                        <button onClick={() => requestJoinGroup(g.id)} disabled={isPending(`gjoin:${g.id}`)}
+                          className="inline-flex items-center gap-2 rounded-full bg-gradient-royal px-4 py-1.5 text-xs font-semibold text-primary-foreground glow-royal transition hover:scale-[1.02] disabled:opacity-60">
+                          {isPending(`gjoin:${g.id}`) ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
+                          {isPending(`gjoin:${g.id}`) ? "Sending…" : "Request to Join"}
                         </button>
                       )}
                       {(mine || member) && (
@@ -506,8 +517,8 @@ function LivePage() {
                             <p className="text-sm font-semibold truncate">Invite to {g.name}</p>
                             <p className="text-[11px] text-muted-foreground">from {owner?.name ?? "host"} · {memberCount(g.id)}/{g.max_size}</p>
                           </div>
-                          <button onClick={() => respondGroupReq(r, "declined")} className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:text-destructive"><X className="h-4 w-4" /></button>
-                          <button onClick={() => respondGroupReq(r, "accepted")} className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-gold text-accent-foreground"><Check className="h-4 w-4" /></button>
+                          <button onClick={() => respondGroupReq(r, "declined")} disabled={isPending(`greq:${r.id}`)} className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:text-destructive disabled:opacity-50">{isPending(`greq:${r.id}`) ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}</button>
+                          <button onClick={() => respondGroupReq(r, "accepted")} disabled={isPending(`greq:${r.id}`)} className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-gold text-accent-foreground disabled:opacity-50">{isPending(`greq:${r.id}`) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}</button>
                         </div>
                       </div>
                     );
@@ -536,13 +547,13 @@ function LivePage() {
                           <p className="font-semibold">{u.name}{u.age ? `, ${u.age}` : ""}</p>
                           <p className="truncate text-xs text-muted-foreground">{u.skills || "wants to connect"}</p>
                         </div>
-                        <button onClick={() => respond(r, "declined")}
-                          className="grid h-9 w-9 place-items-center rounded-xl border border-border text-muted-foreground hover:text-destructive">
-                          <X className="h-4 w-4" />
+                        <button onClick={() => respond(r, "declined")} disabled={isPending(`req:${r.id}`)}
+                          className="grid h-9 w-9 place-items-center rounded-xl border border-border text-muted-foreground hover:text-destructive disabled:opacity-50">
+                          {isPending(`req:${r.id}`) ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
                         </button>
-                        <button onClick={() => respond(r, "accepted")}
-                          className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-gold text-accent-foreground glow-gold">
-                          <Check className="h-4 w-4" />
+                        <button onClick={() => respond(r, "accepted")} disabled={isPending(`req:${r.id}`)}
+                          className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-gold text-accent-foreground glow-gold disabled:opacity-50">
+                          {isPending(`req:${r.id}`) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                         </button>
                       </div>
                     </div>

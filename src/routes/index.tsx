@@ -72,14 +72,21 @@ function Landing() {
       .sort((a, b) => a._km - b._km).slice(0, 8);
   }, [live, coords]);
 
+  const NEARBY_KM = 30;
   const nearbyGroups = useMemo(() => {
     if (!coords) return [];
     return groups
       .map((g) => ({ ...g, _km: distKm(coords, { lat: g.location_lat, lng: g.location_lng }) }))
-      .filter((g) => g._km <= 40) // active groups within 40km
+      .filter((g) => g._km <= NEARBY_KM)
       .sort((a, b) => a._km - b._km)
       .slice(0, 12);
   }, [groups, coords]);
+
+  const tooFar = coords && nearbyUsers.length > 0 && nearbyUsers.every((u) => u._km > NEARBY_KM);
+  const nearbyUsers30 = useMemo(
+    () => nearbyUsers.filter((u) => u._km <= NEARBY_KM),
+    [nearbyUsers]
+  );
 
   const shareLink = async (url: string, title: string) => {
     try {
@@ -190,8 +197,8 @@ function Landing() {
                             ? (u.instagram.startsWith("http") ? u.instagram : `https://${u.instagram.replace(/^@/, "instagram.com/")}`)
                             : u.email ? `mailto:${u.email}` : null;
                           const isMail = !u.instagram && !!u.email;
-                          return (
-                            <div key={`${u.session_id}-${i}`} className="dp-card">
+                          const cardInner = (
+                            <>
                               <div className="dp-ring">
                                 <div className="dp-inner">
                                   {u.name?.[0]?.toUpperCase() ?? "?"}
@@ -201,15 +208,20 @@ function Landing() {
                                 )}
                               </div>
                               <p className="mt-2 max-w-[78px] truncate text-center text-[11px] font-semibold text-foreground">{u.name}</p>
-                              {link && (
-                                <a href={link} target="_blank" rel="noreferrer"
-                                  title={isMail ? "Email" : "Open social"}
-                                  className="dp-check">
-                                  {isMail ? <Mail className="h-3 w-3" /> : <Link2 className="h-3 w-3" />}
-                                  <span>{isMail ? "Mail" : "Check"}</span>
-                                </a>
-                              )}
-                            </div>
+                              <span className="dp-check">
+                                {isMail ? <Mail className="h-3 w-3" /> : link ? <Link2 className="h-3 w-3" /> : <AtSign className="h-3 w-3" />}
+                                <span>{isMail ? "Mail" : link ? "Check" : "Profile"}</span>
+                              </span>
+                            </>
+                          );
+                          return link ? (
+                            <a key={`${u.session_id}-${i}`} href={link} target="_blank" rel="noreferrer"
+                              title={isMail ? `Email ${u.name}` : `Open ${u.name}'s profile`}
+                              className="dp-card group">
+                              {cardInner}
+                            </a>
+                          ) : (
+                            <div key={`${u.session_id}-${i}`} className="dp-card">{cardInner}</div>
                           );
                         })}
                     </div>
@@ -224,42 +236,29 @@ function Landing() {
         </div>
       </section>
 
-      {/* Nearby live snapshot */}
-      {(nearbyUsers.length > 0 || nearbyGroups.length > 0) && (
+      {/* Nearby live snapshot — groups first */}
+      {(nearbyUsers30.length > 0 || nearbyGroups.length > 0 || tooFar) && (
         <section className="border-t border-border/40 bg-background/40 py-16">
           <div className="mx-auto max-w-6xl px-6">
             <div className="flex items-end justify-between">
               <div>
                 <p className="text-xs uppercase tracking-[0.2em] text-gold">Live around you</p>
-                <h2 className="font-display text-2xl font-bold md:text-3xl">Nearby right now</h2>
+                <h2 className="font-display text-2xl font-bold md:text-3xl">Within {NEARBY_KM} km right now</h2>
               </div>
               <button onClick={() => choose("nearby")} className="btn-gold-white text-sm px-4 py-2">Join them</button>
             </div>
 
-            {nearbyUsers.length > 0 && (
-              <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                {nearbyUsers.slice(0, 8).map((u) => (
-                  <button key={u.session_id} onClick={() => choose(u.mode.startsWith("event:") ? "event" : "nearby")}
-                    className="glass rounded-2xl p-4 text-left transition hover:-translate-y-1 hover:glow-gold">
-                    <div className="flex items-center gap-3">
-                      <div className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-royal font-bold text-primary-foreground">
-                        {u.name[0]?.toUpperCase()}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="font-semibold truncate">{u.name}</p>
-                        <p className="text-[11px] text-gold inline-flex items-center gap-1"><MapPin className="h-3 w-3" />{u._km.toFixed(2)} km</p>
-                      </div>
-                    </div>
-                    {u.skills && <p className="mt-2 truncate text-xs text-muted-foreground">{u.skills}</p>}
-                  </button>
-                ))}
+            {tooFar && nearbyGroups.length === 0 && nearbyUsers30.length === 0 && (
+              <div className="mt-6 rounded-2xl border border-amber-400/40 bg-amber-400/10 p-4 text-sm text-amber-200">
+                Nobody live within {NEARBY_KM} km of you. Closest person is {nearbyUsers[0]._km.toFixed(1)} km away.
+                Try moving to a busier spot, or pick a location manually when you go live.
               </div>
             )}
 
             {nearbyGroups.length > 0 && (
               <>
-                <h3 className="mt-10 mb-3 text-xs uppercase tracking-[0.2em] text-gold">
-                  Active groups within 40 km ({nearbyGroups.length})
+                <h3 className="mt-6 mb-3 text-xs uppercase tracking-[0.2em] text-gold">
+                  Active groups near you ({nearbyGroups.length})
                 </h3>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   {nearbyGroups.map((g) => {
@@ -285,6 +284,49 @@ function Landing() {
                           </button>
                           <button onClick={() => shareLink(url, `Join ${g.name} on konnect`)}
                             title="Share invite link"
+                            className="grid h-7 w-7 place-items-center rounded-full border border-gold/40 bg-card/40 text-gold hover:bg-gold/10">
+                            <Share2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
+            {nearbyUsers30.length > 0 && (
+              <>
+                <h3 className="mt-8 mb-3 text-xs uppercase tracking-[0.2em] text-gold">
+                  People near you ({nearbyUsers30.length})
+                </h3>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  {nearbyUsers30.slice(0, 8).map((u) => {
+                    const link = u.instagram
+                      ? (u.instagram.startsWith("http") ? u.instagram : `https://${u.instagram.replace(/^@/, "instagram.com/")}`)
+                      : u.email ? `mailto:${u.email}` : null;
+                    const url = typeof window !== "undefined" ? `${window.location.origin}/live` : "/live";
+                    return (
+                      <div key={u.session_id} className="glass rounded-2xl p-4 transition hover:-translate-y-1 hover:glow-gold">
+                        <div className="flex items-center gap-3">
+                          <div className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-royal font-bold text-primary-foreground">
+                            {u.name[0]?.toUpperCase()}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-semibold truncate">{u.name}</p>
+                            <p className="text-[11px] text-gold inline-flex items-center gap-1"><MapPin className="h-3 w-3" />{u._km.toFixed(2)} km</p>
+                          </div>
+                        </div>
+                        {u.skills && <p className="mt-2 truncate text-xs text-muted-foreground">{u.skills}</p>}
+                        <div className="mt-3 flex gap-2">
+                          {link && (
+                            <a href={link} target="_blank" rel="noreferrer"
+                              className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-full border border-gold/40 bg-gold/10 px-3 py-1.5 text-[11px] font-semibold text-gold hover:bg-gold/20">
+                              {u.instagram ? <><Link2 className="h-3 w-3" />Profile</> : <><Mail className="h-3 w-3" />Email</>}
+                            </a>
+                          )}
+                          <button onClick={() => shareLink(url, `${u.name} is live on konnect`)}
+                            title="Share konnect"
                             className="grid h-7 w-7 place-items-center rounded-full border border-gold/40 bg-card/40 text-gold hover:bg-gold/10">
                             <Share2 className="h-3.5 w-3.5" />
                           </button>
