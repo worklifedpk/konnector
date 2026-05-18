@@ -72,14 +72,21 @@ function Landing() {
       .sort((a, b) => a._km - b._km).slice(0, 8);
   }, [live, coords]);
 
+  const NEARBY_KM = 30;
   const nearbyGroups = useMemo(() => {
     if (!coords) return [];
     return groups
       .map((g) => ({ ...g, _km: distKm(coords, { lat: g.location_lat, lng: g.location_lng }) }))
-      .filter((g) => g._km <= 40) // active groups within 40km
+      .filter((g) => g._km <= NEARBY_KM)
       .sort((a, b) => a._km - b._km)
       .slice(0, 12);
   }, [groups, coords]);
+
+  const tooFar = coords && nearbyUsers.length > 0 && nearbyUsers.every((u) => u._km > NEARBY_KM);
+  const nearbyUsers30 = useMemo(
+    () => nearbyUsers.filter((u) => u._km <= NEARBY_KM),
+    [nearbyUsers]
+  );
 
   const shareLink = async (url: string, title: string) => {
     try {
