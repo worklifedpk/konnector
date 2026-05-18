@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { MapPin, Sparkles, Users, Zap, Shield, Hand, Calendar, Compass, ArrowRight, Mail, AtSign, Crown, Link2, Share2 } from "lucide-react";
+import { MapPin, Sparkles, Users, Zap, Shield, Hand, Calendar, Compass, ArrowRight, Mail, Crown, Link2, Share2 } from "lucide-react";
 import heroImg from "@/assets/hero-radar.jpg";
 import { setMode } from "@/lib/session";
 import { supabase } from "@/integrations/supabase/client";
@@ -99,24 +99,63 @@ function Landing() {
     } catch {}
   };
 
-  // marquee items: name + masked email + social handle
-  const tickerItems = live.filter((u) => u.email || u.instagram).slice(0, 12);
+  // Professional top strip — one chip per person, single contact (prefer social, else email)
+  const topProfiles = useMemo(() => {
+    const seen = new Set<string>();
+    return live
+      .filter((u) => u.email || u.instagram)
+      .filter((u) => {
+        const key = (u.instagram || u.email || u.session_id).toLowerCase().trim();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .slice(0, 14);
+  }, [live]);
+
+  // Radar dots — project nearby users onto a circular radar around viewer
+  const radarPoints = useMemo(() => {
+    const pool = (nearbyUsers.length ? nearbyUsers : live.slice(0, 10).map((u) => ({ ...u, _km: 0 })));
+    return pool.slice(0, 10).map((u, i) => {
+      // map distance (0..NEARBY_KM) to radius% (10..46), with synthetic fallback
+      const km = (u as any)._km ?? 0;
+      const r = coords && km > 0
+        ? Math.min(46, 10 + (km / NEARBY_KM) * 36)
+        : 14 + (i * 31) % 32;
+      const angle = (i * 47) % 360;
+      const rad = (angle * Math.PI) / 180;
+      const x = 50 + r * Math.cos(rad);
+      const y = 50 + r * Math.sin(rad);
+      return { u, x, y, delay: (i % 6) * 0.4, km };
+    });
+  }, [nearbyUsers, live, coords]);
 
   return (
     <main className="relative min-h-screen overflow-hidden">
-      {/* Live ticker bar */}
-      {tickerItems.length > 0 && (
+      {/* Top professional sliding profile strip */}
+      {topProfiles.length > 0 && (
         <div className="relative z-10 border-b border-gold/20 bg-card/40 backdrop-blur">
-          <div className="overflow-hidden py-2">
-            <div className="ticker flex gap-8 whitespace-nowrap text-xs">
-              {[...tickerItems, ...tickerItems].map((u, i) => (
-                <span key={i} className="inline-flex items-center gap-2 text-muted-foreground">
-                  <span className="h-1.5 w-1.5 rounded-full bg-gold animate-pulse" />
-                  <span className="font-semibold text-foreground">{u.name}</span>
-                  {u.email && (<><Mail className="h-3 w-3 text-gold" /><span>{u.email}</span></>)}
-                  {u.instagram && (<><AtSign className="h-3 w-3 text-gold" /><span>{u.instagram.replace(/^https?:\/\//, "")}</span></>)}
-                </span>
-              ))}
+          <div className="pro-strip py-2.5">
+            <div className="pro-track">
+              {[...topProfiles, ...topProfiles].map((u, i) => {
+                const handle = u.instagram?.replace(/^https?:\/\//, "").replace(/^www\./, "") || u.email!;
+                const link = u.instagram
+                  ? (u.instagram.startsWith("http") ? u.instagram : `https://${u.instagram.replace(/^@/, "instagram.com/")}`)
+                  : `mailto:${u.email}`;
+                const Icon = u.instagram ? Link2 : Mail;
+                return (
+                  <a key={`${u.session_id}-${i}`} href={link} target="_blank" rel="noreferrer"
+                    className="pro-chip group">
+                    <span className="pro-avatar">{u.name?.[0]?.toUpperCase() ?? "?"}</span>
+                    <span className="flex flex-col leading-tight min-w-0">
+                      <span className="text-[12px] font-semibold text-foreground truncate max-w-[140px]">{u.name}</span>
+                      <span className="text-[10px] text-muted-foreground inline-flex items-center gap-1 truncate max-w-[140px]">
+                        <Icon className="h-2.5 w-2.5 text-gold shrink-0" />{handle}
+                      </span>
+                    </span>
+                  </a>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -172,65 +211,57 @@ function Landing() {
             </div>
           </div>
 
-          {/* GenZ sliding DP carousel — only DPs slide, social/email button beside */}
+          {/* Live radar — visualises nearby people on concentric pulse rings */}
           <div className="relative mx-auto w-full max-w-md">
             <div className="relative overflow-hidden rounded-3xl border border-gold/20 glass-strong p-5">
               <div className="absolute inset-0 grid-bg opacity-50" />
-              <div className="absolute inset-0 radar-sweep opacity-20" />
               <div className="relative">
-                <p className="mb-3 inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-gold">
-                  <span className="h-1.5 w-1.5 rounded-full bg-gold animate-pulse" />
-                  Live now · slide to peek
-                </p>
+                <div className="mb-3 flex items-center justify-between">
+                  <p className="inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-gold">
+                    <span className="h-1.5 w-1.5 rounded-full bg-gold animate-pulse" />
+                    Live radar · {radarPoints.length} nearby
+                  </p>
+                  <span className="text-[10px] text-muted-foreground">{NEARBY_KM} km</span>
+                </div>
 
-                {(nearbyUsers.length ? nearbyUsers : live.slice(0, 12).map((u) => ({ ...u, _km: 0 }))).length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-gold/20 p-8 text-center text-xs text-muted-foreground">
-                    No one live yet. Be the first to drop in.
-                  </div>
-                ) : (
-                  <div className="dp-marquee">
-                    <div className="dp-track">
-                      {[...(nearbyUsers.length ? nearbyUsers : live.slice(0, 12).map((u) => ({ ...u, _km: 0 }))),
-                        ...(nearbyUsers.length ? nearbyUsers : live.slice(0, 12).map((u) => ({ ...u, _km: 0 })))]
-                        .map((u, i) => {
-                          const link = u.instagram
-                            ? (u.instagram.startsWith("http") ? u.instagram : `https://${u.instagram.replace(/^@/, "instagram.com/")}`)
-                            : u.email ? `mailto:${u.email}` : null;
-                          const isMail = !u.instagram && !!u.email;
-                          const cardInner = (
-                            <>
-                              <div className="dp-ring">
-                                <div className="dp-inner">
-                                  {u.name?.[0]?.toUpperCase() ?? "?"}
-                                </div>
-                                {coords && u._km > 0 && (
-                                  <span className="dp-dist">{u._km < 1 ? `${Math.round(u._km*1000)}m` : `${u._km.toFixed(1)}km`}</span>
-                                )}
-                              </div>
-                              <p className="mt-2 max-w-[78px] truncate text-center text-[11px] font-semibold text-foreground">{u.name}</p>
-                              <span className="dp-check">
-                                {isMail ? <Mail className="h-3 w-3" /> : link ? <Link2 className="h-3 w-3" /> : <AtSign className="h-3 w-3" />}
-                                <span>{isMail ? "Mail" : link ? "Check" : "Profile"}</span>
-                              </span>
-                            </>
-                          );
-                          return link ? (
-                            <a key={`${u.session_id}-${i}`} href={link} target="_blank" rel="noreferrer"
-                              title={isMail ? `Email ${u.name}` : `Open ${u.name}'s profile`}
-                              className="dp-card group">
-                              {cardInner}
-                            </a>
-                          ) : (
-                            <div key={`${u.session_id}-${i}`} className="dp-card">{cardInner}</div>
-                          );
-                        })}
+                <div className="radar-stage">
+                  <div className="radar-ring r1" />
+                  <div className="radar-ring r2" />
+                  <div className="radar-ring r3" />
+                  <div className="radar-ring r4" />
+                  <div className="radar-sweep-disc" />
+                  <div className="radar-center" />
+                  {radarPoints.map(({ u, x, y, delay, km }) => {
+                    const link = u.instagram
+                      ? (u.instagram.startsWith("http") ? u.instagram : `https://${u.instagram.replace(/^@/, "instagram.com/")}`)
+                      : u.email ? `mailto:${u.email}` : null;
+                    const Inner = (
+                      <>
+                        <span className="radar-pulse" />
+                        <span className="radar-dot">{u.name?.[0]?.toUpperCase() ?? "?"}</span>
+                        <span className="radar-label">
+                          {u.name}{km > 0 && <em> · {km < 1 ? `${Math.round(km*1000)}m` : `${km.toFixed(1)}km`}</em>}
+                        </span>
+                      </>
+                    );
+                    const style = { left: `${x}%`, top: `${y}%`, animationDelay: `${delay}s` } as React.CSSProperties;
+                    return link ? (
+                      <a key={u.session_id} href={link} target="_blank" rel="noreferrer"
+                        className="radar-blip" style={style} title={u.name}>{Inner}</a>
+                    ) : (
+                      <div key={u.session_id} className="radar-blip" style={style} title={u.name}>{Inner}</div>
+                    );
+                  })}
+                  {radarPoints.length === 0 && (
+                    <div className="absolute inset-0 grid place-items-center text-xs text-muted-foreground">
+                      Scanning…
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </div>
             <p className="mt-3 text-center text-[11px] text-muted-foreground">
-              {coords ? "Hover to pause · tap profile to connect" : "Allow location to see real distances"}
+              {coords ? "Tap any blip to open their profile" : "Allow location to see real distances"}
             </p>
           </div>
         </div>
@@ -393,44 +424,80 @@ function Landing() {
       </footer>
 
       <style>{`
-        @keyframes ticker { from { transform: translateX(0); } to { transform: translateX(-50%); } }
-        .ticker { animation: ticker 45s linear infinite; }
-        .ticker:hover { animation-play-state: paused; }
-        @keyframes dpSlide { from { transform: translateX(0); } to { transform: translateX(-50%); } }
-        .dp-marquee { overflow: hidden; mask-image: linear-gradient(90deg, transparent 0, #000 8%, #000 92%, transparent 100%); }
-        .dp-track { display: flex; gap: 18px; width: max-content; animation: dpSlide 35s linear infinite; }
-        .dp-marquee:hover .dp-track { animation-play-state: paused; }
-        .dp-card { position: relative; display: flex; flex-direction: column; align-items: center; width: 84px; }
-        .dp-ring {
-          position: relative; width: 76px; height: 76px; border-radius: 9999px; padding: 3px;
-          background: conic-gradient(from 120deg, var(--gold), color-mix(in oklab, var(--gold) 20%, white 60%), var(--gold));
-          box-shadow: 0 6px 22px -6px color-mix(in oklab, var(--gold) 55%, transparent);
-          transition: transform 200ms;
+        /* Professional top profile strip */
+        @keyframes proSlide { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+        .pro-strip { overflow: hidden; mask-image: linear-gradient(90deg, transparent 0, #000 6%, #000 94%, transparent 100%); }
+        .pro-track { display: flex; gap: 14px; width: max-content; animation: proSlide 60s linear infinite; padding: 0 1rem; }
+        .pro-strip:hover .pro-track { animation-play-state: paused; }
+        .pro-chip {
+          display: inline-flex; align-items: center; gap: 10px;
+          padding: 6px 14px 6px 6px; border-radius: 9999px;
+          background: linear-gradient(135deg, color-mix(in oklab, var(--card) 90%, transparent), color-mix(in oklab, var(--card) 70%, transparent));
+          border: 1px solid color-mix(in oklab, var(--gold) 22%, transparent);
+          box-shadow: 0 6px 18px -10px color-mix(in oklab, var(--gold) 30%, transparent), inset 0 1px 0 oklch(1 0 0 / 0.04);
+          transition: transform 220ms var(--ease-luxe), border-color 220ms;
         }
-        .dp-card:hover .dp-ring { transform: scale(1.07) rotate(-2deg); }
-        .dp-inner {
-          width: 100%; height: 100%; border-radius: 9999px;
-          display: grid; place-items: center;
-          background: linear-gradient(135deg, color-mix(in oklab, var(--primary) 60%, black 10%), color-mix(in oklab, var(--gold) 35%, black 30%));
-          color: #fff; font-weight: 800; font-size: 26px; letter-spacing: -0.02em;
+        .pro-chip:hover { transform: translateY(-1px); border-color: color-mix(in oklab, var(--gold) 55%, transparent); }
+        .pro-avatar {
+          width: 28px; height: 28px; border-radius: 9999px; display: grid; place-items: center;
+          font-weight: 800; font-size: 12px; color: #1a1408;
+          background: linear-gradient(135deg, color-mix(in oklab, var(--gold) 92%, white 30%), color-mix(in oklab, var(--gold) 55%, white 5%));
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.55);
         }
-        .dp-dist {
-          position: absolute; top: -6px; right: -6px;
-          background: var(--background); color: var(--gold);
-          border: 1px solid color-mix(in oklab, var(--gold) 50%, transparent);
-          padding: 1px 6px; border-radius: 9999px; font-size: 9px; font-weight: 700;
+
+        /* Radar visualisation */
+        .radar-stage {
+          position: relative; width: 100%; aspect-ratio: 1 / 1; border-radius: 9999px;
+          background:
+            radial-gradient(circle at 50% 50%, color-mix(in oklab, var(--gold) 12%, transparent) 0%, transparent 60%),
+            color-mix(in oklab, var(--background) 90%, black 10%);
+          border: 1px solid color-mix(in oklab, var(--gold) 18%, transparent);
+          overflow: hidden;
+          box-shadow: inset 0 0 60px color-mix(in oklab, var(--gold) 18%, transparent);
         }
-        .dp-check {
-          position: absolute; bottom: 18px; right: -6px;
-          display: inline-flex; align-items: center; gap: 3px;
-          padding: 3px 7px; border-radius: 9999px; font-size: 9px; font-weight: 700;
-          color: #1a1408;
-          background: linear-gradient(135deg, color-mix(in oklab, var(--gold) 92%, white 30%), color-mix(in oklab, white 70%, var(--gold) 30%));
-          border: 1px solid color-mix(in oklab, var(--gold) 60%, white 20%);
-          box-shadow: 0 4px 12px -4px color-mix(in oklab, var(--gold) 55%, transparent);
-          transition: transform 150ms;
+        .radar-ring { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); border-radius: 9999px; border: 1px solid color-mix(in oklab, var(--gold) 22%, transparent); }
+        .radar-ring.r1 { width: 22%; height: 22%; }
+        .radar-ring.r2 { width: 44%; height: 44%; }
+        .radar-ring.r3 { width: 68%; height: 68%; }
+        .radar-ring.r4 { width: 92%; height: 92%; }
+        .radar-sweep-disc {
+          position: absolute; inset: 4%; border-radius: 9999px;
+          background: conic-gradient(from 0deg, transparent 0deg, color-mix(in oklab, var(--gold) 30%, transparent) 30deg, color-mix(in oklab, var(--gold) 8%, transparent) 55deg, transparent 75deg);
+          animation: konnect-radar 4.5s linear infinite;
+          pointer-events: none;
         }
-        .dp-check:hover { transform: translateY(-2px) scale(1.05); }
+        .radar-center {
+          position: absolute; left: 50%; top: 50%; width: 10px; height: 10px;
+          transform: translate(-50%,-50%); border-radius: 9999px;
+          background: var(--gold); box-shadow: 0 0 18px var(--gold);
+        }
+        .radar-blip {
+          position: absolute; transform: translate(-50%,-50%);
+          display: grid; place-items: center; cursor: pointer;
+        }
+        .radar-pulse {
+          position: absolute; width: 26px; height: 26px; border-radius: 9999px;
+          border: 1px solid var(--gold); opacity: 0.8;
+          animation: konnect-pulse 2.4s var(--ease-luxe) infinite;
+        }
+        .radar-dot {
+          position: relative; width: 22px; height: 22px; border-radius: 9999px;
+          display: grid; place-items: center; font-size: 10px; font-weight: 800; color: #1a1408;
+          background: linear-gradient(135deg, color-mix(in oklab, var(--gold) 92%, white 30%), color-mix(in oklab, var(--gold) 55%, white 5%));
+          box-shadow: 0 4px 14px -2px color-mix(in oklab, var(--gold) 55%, transparent), inset 0 1px 0 rgba(255,255,255,0.55);
+          transition: transform 180ms;
+        }
+        .radar-blip:hover .radar-dot { transform: scale(1.18); }
+        .radar-label {
+          position: absolute; top: 26px; left: 50%; transform: translateX(-50%);
+          white-space: nowrap; font-size: 9px; font-weight: 700; color: var(--foreground);
+          background: color-mix(in oklab, var(--background) 80%, transparent);
+          padding: 1px 6px; border-radius: 9999px;
+          border: 1px solid color-mix(in oklab, var(--gold) 25%, transparent);
+          opacity: 0; transition: opacity 180ms;
+        }
+        .radar-label em { color: var(--gold); font-style: normal; }
+        .radar-blip:hover .radar-label { opacity: 1; }
         .btn-gold-white {
           background: linear-gradient(135deg,
             color-mix(in oklab, var(--gold) 92%, white 30%) 0%,
