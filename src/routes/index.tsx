@@ -211,65 +211,57 @@ function Landing() {
             </div>
           </div>
 
-          {/* GenZ sliding DP carousel — only DPs slide, social/email button beside */}
+          {/* Live radar — visualises nearby people on concentric pulse rings */}
           <div className="relative mx-auto w-full max-w-md">
             <div className="relative overflow-hidden rounded-3xl border border-gold/20 glass-strong p-5">
               <div className="absolute inset-0 grid-bg opacity-50" />
-              <div className="absolute inset-0 radar-sweep opacity-20" />
               <div className="relative">
-                <p className="mb-3 inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-gold">
-                  <span className="h-1.5 w-1.5 rounded-full bg-gold animate-pulse" />
-                  Live now · slide to peek
-                </p>
+                <div className="mb-3 flex items-center justify-between">
+                  <p className="inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-gold">
+                    <span className="h-1.5 w-1.5 rounded-full bg-gold animate-pulse" />
+                    Live radar · {radarPoints.length} nearby
+                  </p>
+                  <span className="text-[10px] text-muted-foreground">{NEARBY_KM} km</span>
+                </div>
 
-                {(nearbyUsers.length ? nearbyUsers : live.slice(0, 12).map((u) => ({ ...u, _km: 0 }))).length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-gold/20 p-8 text-center text-xs text-muted-foreground">
-                    No one live yet. Be the first to drop in.
-                  </div>
-                ) : (
-                  <div className="dp-marquee">
-                    <div className="dp-track">
-                      {[...(nearbyUsers.length ? nearbyUsers : live.slice(0, 12).map((u) => ({ ...u, _km: 0 }))),
-                        ...(nearbyUsers.length ? nearbyUsers : live.slice(0, 12).map((u) => ({ ...u, _km: 0 })))]
-                        .map((u, i) => {
-                          const link = u.instagram
-                            ? (u.instagram.startsWith("http") ? u.instagram : `https://${u.instagram.replace(/^@/, "instagram.com/")}`)
-                            : u.email ? `mailto:${u.email}` : null;
-                          const isMail = !u.instagram && !!u.email;
-                          const cardInner = (
-                            <>
-                              <div className="dp-ring">
-                                <div className="dp-inner">
-                                  {u.name?.[0]?.toUpperCase() ?? "?"}
-                                </div>
-                                {coords && u._km > 0 && (
-                                  <span className="dp-dist">{u._km < 1 ? `${Math.round(u._km*1000)}m` : `${u._km.toFixed(1)}km`}</span>
-                                )}
-                              </div>
-                              <p className="mt-2 max-w-[78px] truncate text-center text-[11px] font-semibold text-foreground">{u.name}</p>
-                              <span className="dp-check">
-                                {isMail ? <Mail className="h-3 w-3" /> : link ? <Link2 className="h-3 w-3" /> : <AtSign className="h-3 w-3" />}
-                                <span>{isMail ? "Mail" : link ? "Check" : "Profile"}</span>
-                              </span>
-                            </>
-                          );
-                          return link ? (
-                            <a key={`${u.session_id}-${i}`} href={link} target="_blank" rel="noreferrer"
-                              title={isMail ? `Email ${u.name}` : `Open ${u.name}'s profile`}
-                              className="dp-card group">
-                              {cardInner}
-                            </a>
-                          ) : (
-                            <div key={`${u.session_id}-${i}`} className="dp-card">{cardInner}</div>
-                          );
-                        })}
+                <div className="radar-stage">
+                  <div className="radar-ring r1" />
+                  <div className="radar-ring r2" />
+                  <div className="radar-ring r3" />
+                  <div className="radar-ring r4" />
+                  <div className="radar-sweep-disc" />
+                  <div className="radar-center" />
+                  {radarPoints.map(({ u, x, y, delay, km }) => {
+                    const link = u.instagram
+                      ? (u.instagram.startsWith("http") ? u.instagram : `https://${u.instagram.replace(/^@/, "instagram.com/")}`)
+                      : u.email ? `mailto:${u.email}` : null;
+                    const Inner = (
+                      <>
+                        <span className="radar-pulse" />
+                        <span className="radar-dot">{u.name?.[0]?.toUpperCase() ?? "?"}</span>
+                        <span className="radar-label">
+                          {u.name}{km > 0 && <em> · {km < 1 ? `${Math.round(km*1000)}m` : `${km.toFixed(1)}km`}</em>}
+                        </span>
+                      </>
+                    );
+                    const style = { left: `${x}%`, top: `${y}%`, animationDelay: `${delay}s` } as React.CSSProperties;
+                    return link ? (
+                      <a key={u.session_id} href={link} target="_blank" rel="noreferrer"
+                        className="radar-blip" style={style} title={u.name}>{Inner}</a>
+                    ) : (
+                      <div key={u.session_id} className="radar-blip" style={style} title={u.name}>{Inner}</div>
+                    );
+                  })}
+                  {radarPoints.length === 0 && (
+                    <div className="absolute inset-0 grid place-items-center text-xs text-muted-foreground">
+                      Scanning…
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </div>
             <p className="mt-3 text-center text-[11px] text-muted-foreground">
-              {coords ? "Hover to pause · tap profile to connect" : "Allow location to see real distances"}
+              {coords ? "Tap any blip to open their profile" : "Allow location to see real distances"}
             </p>
           </div>
         </div>
