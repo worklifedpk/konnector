@@ -70,6 +70,14 @@ function LivePage() {
   const [showCreate, setShowCreate] = useState(false);
   const [profileOpen, setProfileOpen] = useState<LiveUser | null>(null);
   const [chatGroup, setChatGroup] = useState<Group | null>(null);
+  const [pending, setPending] = useState<Set<string>>(new Set());
+  const isPending = (k: string) => pending.has(k);
+  const withPending = async <T,>(k: string, fn: () => Promise<T>): Promise<T | undefined> => {
+    if (pending.has(k)) return;
+    setPending((s) => { const n = new Set(s); n.add(k); return n; });
+    try { return await fn(); }
+    finally { setPending((s) => { const n = new Set(s); n.delete(k); return n; }); }
+  };
   const sliderRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
