@@ -132,19 +132,30 @@ function Landing() {
 
   return (
     <main className="relative min-h-screen overflow-hidden">
-      {/* Live ticker bar */}
-      {tickerItems.length > 0 && (
+      {/* Top professional sliding profile strip */}
+      {topProfiles.length > 0 && (
         <div className="relative z-10 border-b border-gold/20 bg-card/40 backdrop-blur">
-          <div className="overflow-hidden py-2">
-            <div className="ticker flex gap-8 whitespace-nowrap text-xs">
-              {[...tickerItems, ...tickerItems].map((u, i) => (
-                <span key={i} className="inline-flex items-center gap-2 text-muted-foreground">
-                  <span className="h-1.5 w-1.5 rounded-full bg-gold animate-pulse" />
-                  <span className="font-semibold text-foreground">{u.name}</span>
-                  {u.email && (<><Mail className="h-3 w-3 text-gold" /><span>{u.email}</span></>)}
-                  {u.instagram && (<><AtSign className="h-3 w-3 text-gold" /><span>{u.instagram.replace(/^https?:\/\//, "")}</span></>)}
-                </span>
-              ))}
+          <div className="pro-strip py-2.5">
+            <div className="pro-track">
+              {[...topProfiles, ...topProfiles].map((u, i) => {
+                const handle = u.instagram?.replace(/^https?:\/\//, "").replace(/^www\./, "") || u.email!;
+                const link = u.instagram
+                  ? (u.instagram.startsWith("http") ? u.instagram : `https://${u.instagram.replace(/^@/, "instagram.com/")}`)
+                  : `mailto:${u.email}`;
+                const Icon = u.instagram ? Link2 : Mail;
+                return (
+                  <a key={`${u.session_id}-${i}`} href={link} target="_blank" rel="noreferrer"
+                    className="pro-chip group">
+                    <span className="pro-avatar">{u.name?.[0]?.toUpperCase() ?? "?"}</span>
+                    <span className="flex flex-col leading-tight min-w-0">
+                      <span className="text-[12px] font-semibold text-foreground truncate max-w-[140px]">{u.name}</span>
+                      <span className="text-[10px] text-muted-foreground inline-flex items-center gap-1 truncate max-w-[140px]">
+                        <Icon className="h-2.5 w-2.5 text-gold shrink-0" />{handle}
+                      </span>
+                    </span>
+                  </a>
+                );
+              })}
             </div>
           </div>
         </div>
