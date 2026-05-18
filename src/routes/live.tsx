@@ -465,9 +465,10 @@ function LivePage() {
                       ) : full ? (
                         <span className="inline-block rounded-full border border-border bg-card/40 px-3 py-1.5 text-xs text-muted-foreground">Full</span>
                       ) : (
-                        <button onClick={() => requestJoinGroup(g.id)}
-                          className="inline-flex items-center gap-2 rounded-full bg-gradient-royal px-4 py-1.5 text-xs font-semibold text-primary-foreground glow-royal transition hover:scale-[1.02]">
-                          <Send className="h-3 w-3" /> Request to Join
+                        <button onClick={() => requestJoinGroup(g.id)} disabled={isPending(`gjoin:${g.id}`)}
+                          className="inline-flex items-center gap-2 rounded-full bg-gradient-royal px-4 py-1.5 text-xs font-semibold text-primary-foreground glow-royal transition hover:scale-[1.02] disabled:opacity-60">
+                          {isPending(`gjoin:${g.id}`) ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
+                          {isPending(`gjoin:${g.id}`) ? "Sending…" : "Request to Join"}
                         </button>
                       )}
                       {(mine || member) && (
