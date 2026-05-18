@@ -547,13 +547,13 @@ function LivePage() {
                           <p className="font-semibold">{u.name}{u.age ? `, ${u.age}` : ""}</p>
                           <p className="truncate text-xs text-muted-foreground">{u.skills || "wants to connect"}</p>
                         </div>
-                        <button onClick={() => respond(r, "declined")}
-                          className="grid h-9 w-9 place-items-center rounded-xl border border-border text-muted-foreground hover:text-destructive">
-                          <X className="h-4 w-4" />
+                        <button onClick={() => respond(r, "declined")} disabled={isPending(`req:${r.id}`)}
+                          className="grid h-9 w-9 place-items-center rounded-xl border border-border text-muted-foreground hover:text-destructive disabled:opacity-50">
+                          {isPending(`req:${r.id}`) ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
                         </button>
-                        <button onClick={() => respond(r, "accepted")}
-                          className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-gold text-accent-foreground glow-gold">
-                          <Check className="h-4 w-4" />
+                        <button onClick={() => respond(r, "accepted")} disabled={isPending(`req:${r.id}`)}
+                          className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-gold text-accent-foreground glow-gold disabled:opacity-50">
+                          {isPending(`req:${r.id}`) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                         </button>
                       </div>
                     </div>
