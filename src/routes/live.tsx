@@ -517,8 +517,8 @@ function LivePage() {
                             <p className="text-sm font-semibold truncate">Invite to {g.name}</p>
                             <p className="text-[11px] text-muted-foreground">from {owner?.name ?? "host"} · {memberCount(g.id)}/{g.max_size}</p>
                           </div>
-                          <button onClick={() => respondGroupReq(r, "declined")} className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:text-destructive"><X className="h-4 w-4" /></button>
-                          <button onClick={() => respondGroupReq(r, "accepted")} className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-gold text-accent-foreground"><Check className="h-4 w-4" /></button>
+                          <button onClick={() => respondGroupReq(r, "declined")} disabled={isPending(`greq:${r.id}`)} className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:text-destructive disabled:opacity-50">{isPending(`greq:${r.id}`) ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}</button>
+                          <button onClick={() => respondGroupReq(r, "accepted")} disabled={isPending(`greq:${r.id}`)} className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-gold text-accent-foreground disabled:opacity-50">{isPending(`greq:${r.id}`) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}</button>
                         </div>
                       </div>
                     );
