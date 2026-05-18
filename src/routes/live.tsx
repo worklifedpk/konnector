@@ -208,36 +208,37 @@ function LivePage() {
     r.status === "pending" && r.kind === "invite" && r.to_session === me
   );
 
-  const requestJoinGroup = async (gid: string) => {
-    const { error } = await sb.from("konnect_group_requests").insert({ group_id: gid, from_session: me, kind: "join", status: "pending" });
-    if (error) return toast.error(error.message);
-    toast.success("Join request sent");
-  };
+  const requestJoinGroup = async (gid: string) =>
+    withPending(`gjoin:${gid}`, async () => {
+      const { error } = await sb.from("konnect_group_requests").insert({ group_id: gid, from_session: me, kind: "join", status: "pending" });
+      if (error) return toast.error(error.message);
+      toast.success("Join request sent");
+    });
 
-  const inviteToGroup = async (gid: string, peer: string) => {
-    // prevent duplicates
-    const dup = groupReqs.find((r) => r.group_id === gid && r.to_session === peer && r.kind === "invite" && r.status !== "declined");
-    if (dup) return toast("Already invited");
-    const { error } = await sb.from("konnect_group_requests").insert({ group_id: gid, from_session: me, to_session: peer, kind: "invite", status: "pending" });
-    if (error) return toast.error(error.message);
-    toast.success("Invite sent");
-  };
+  const inviteToGroup = async (gid: string, peer: string) =>
+    withPending(`ginvite:${gid}:${peer}`, async () => {
+      const dup = groupReqs.find((r) => r.group_id === gid && r.to_session === peer && r.kind === "invite" && r.status !== "declined");
+      if (dup) return toast("Already invited");
+      const { error } = await sb.from("konnect_group_requests").insert({ group_id: gid, from_session: me, to_session: peer, kind: "invite", status: "pending" });
+      if (error) return toast.error(error.message);
+      toast.success("Invite sent");
+    });
 
-  const respondGroupReq = async (req: GroupReq, status: "accepted" | "declined") => {
-    const { error } = await sb.from("konnect_group_requests").update({ status }).eq("id", req.id);
-    if (error) return toast.error(error.message);
-    if (status === "accepted") {
-      const g = groups.find((x) => x.id === req.group_id);
-      if (g && memberCount(g.id) >= g.max_size) {
-        toast.error("Group is full");
-        return;
+  const respondGroupReq = async (req: GroupReq, status: "accepted" | "declined") =>
+    withPending(`greq:${req.id}`, async () => {
+      const { error } = await sb.from("konnect_group_requests").update({ status }).eq("id", req.id);
+      if (error) return toast.error(error.message);
+      if (status === "accepted") {
+        const g = groups.find((x) => x.id === req.group_id);
+        if (g && memberCount(g.id) >= g.max_size) {
+          toast.error("Group is full");
+          return;
+        }
+        const joinerSession = req.kind === "invite" ? (req.to_session ?? me) : req.from_session;
+        await sb.from("konnect_group_members").insert({ group_id: req.group_id, session_id: joinerSession });
+        toast.success(req.kind === "invite" ? "Joined group" : "Member added");
       }
-      // For invites the joining session is to_session; for join requests it's from_session
-      const joinerSession = req.kind === "invite" ? (req.to_session ?? me) : req.from_session;
-      await sb.from("konnect_group_members").insert({ group_id: req.group_id, session_id: joinerSession });
-      toast.success(req.kind === "invite" ? "Joined group" : "Member added");
-    }
-  };
+    });
 
   if (!meRow) return null;
   const isEventMode = meRow.mode.startsWith("event:");
