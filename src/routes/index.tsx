@@ -424,44 +424,80 @@ function Landing() {
       </footer>
 
       <style>{`
-        @keyframes ticker { from { transform: translateX(0); } to { transform: translateX(-50%); } }
-        .ticker { animation: ticker 45s linear infinite; }
-        .ticker:hover { animation-play-state: paused; }
-        @keyframes dpSlide { from { transform: translateX(0); } to { transform: translateX(-50%); } }
-        .dp-marquee { overflow: hidden; mask-image: linear-gradient(90deg, transparent 0, #000 8%, #000 92%, transparent 100%); }
-        .dp-track { display: flex; gap: 18px; width: max-content; animation: dpSlide 35s linear infinite; }
-        .dp-marquee:hover .dp-track { animation-play-state: paused; }
-        .dp-card { position: relative; display: flex; flex-direction: column; align-items: center; width: 84px; }
-        .dp-ring {
-          position: relative; width: 76px; height: 76px; border-radius: 9999px; padding: 3px;
-          background: conic-gradient(from 120deg, var(--gold), color-mix(in oklab, var(--gold) 20%, white 60%), var(--gold));
-          box-shadow: 0 6px 22px -6px color-mix(in oklab, var(--gold) 55%, transparent);
-          transition: transform 200ms;
+        /* Professional top profile strip */
+        @keyframes proSlide { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+        .pro-strip { overflow: hidden; mask-image: linear-gradient(90deg, transparent 0, #000 6%, #000 94%, transparent 100%); }
+        .pro-track { display: flex; gap: 14px; width: max-content; animation: proSlide 60s linear infinite; padding: 0 1rem; }
+        .pro-strip:hover .pro-track { animation-play-state: paused; }
+        .pro-chip {
+          display: inline-flex; align-items: center; gap: 10px;
+          padding: 6px 14px 6px 6px; border-radius: 9999px;
+          background: linear-gradient(135deg, color-mix(in oklab, var(--card) 90%, transparent), color-mix(in oklab, var(--card) 70%, transparent));
+          border: 1px solid color-mix(in oklab, var(--gold) 22%, transparent);
+          box-shadow: 0 6px 18px -10px color-mix(in oklab, var(--gold) 30%, transparent), inset 0 1px 0 oklch(1 0 0 / 0.04);
+          transition: transform 220ms var(--ease-luxe), border-color 220ms;
         }
-        .dp-card:hover .dp-ring { transform: scale(1.07) rotate(-2deg); }
-        .dp-inner {
-          width: 100%; height: 100%; border-radius: 9999px;
-          display: grid; place-items: center;
-          background: linear-gradient(135deg, color-mix(in oklab, var(--primary) 60%, black 10%), color-mix(in oklab, var(--gold) 35%, black 30%));
-          color: #fff; font-weight: 800; font-size: 26px; letter-spacing: -0.02em;
+        .pro-chip:hover { transform: translateY(-1px); border-color: color-mix(in oklab, var(--gold) 55%, transparent); }
+        .pro-avatar {
+          width: 28px; height: 28px; border-radius: 9999px; display: grid; place-items: center;
+          font-weight: 800; font-size: 12px; color: #1a1408;
+          background: linear-gradient(135deg, color-mix(in oklab, var(--gold) 92%, white 30%), color-mix(in oklab, var(--gold) 55%, white 5%));
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.55);
         }
-        .dp-dist {
-          position: absolute; top: -6px; right: -6px;
-          background: var(--background); color: var(--gold);
-          border: 1px solid color-mix(in oklab, var(--gold) 50%, transparent);
-          padding: 1px 6px; border-radius: 9999px; font-size: 9px; font-weight: 700;
+
+        /* Radar visualisation */
+        .radar-stage {
+          position: relative; width: 100%; aspect-ratio: 1 / 1; border-radius: 9999px;
+          background:
+            radial-gradient(circle at 50% 50%, color-mix(in oklab, var(--gold) 12%, transparent) 0%, transparent 60%),
+            color-mix(in oklab, var(--background) 90%, black 10%);
+          border: 1px solid color-mix(in oklab, var(--gold) 18%, transparent);
+          overflow: hidden;
+          box-shadow: inset 0 0 60px color-mix(in oklab, var(--gold) 18%, transparent);
         }
-        .dp-check {
-          position: absolute; bottom: 18px; right: -6px;
-          display: inline-flex; align-items: center; gap: 3px;
-          padding: 3px 7px; border-radius: 9999px; font-size: 9px; font-weight: 700;
-          color: #1a1408;
-          background: linear-gradient(135deg, color-mix(in oklab, var(--gold) 92%, white 30%), color-mix(in oklab, white 70%, var(--gold) 30%));
-          border: 1px solid color-mix(in oklab, var(--gold) 60%, white 20%);
-          box-shadow: 0 4px 12px -4px color-mix(in oklab, var(--gold) 55%, transparent);
-          transition: transform 150ms;
+        .radar-ring { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); border-radius: 9999px; border: 1px solid color-mix(in oklab, var(--gold) 22%, transparent); }
+        .radar-ring.r1 { width: 22%; height: 22%; }
+        .radar-ring.r2 { width: 44%; height: 44%; }
+        .radar-ring.r3 { width: 68%; height: 68%; }
+        .radar-ring.r4 { width: 92%; height: 92%; }
+        .radar-sweep-disc {
+          position: absolute; inset: 4%; border-radius: 9999px;
+          background: conic-gradient(from 0deg, transparent 0deg, color-mix(in oklab, var(--gold) 30%, transparent) 30deg, color-mix(in oklab, var(--gold) 8%, transparent) 55deg, transparent 75deg);
+          animation: konnect-radar 4.5s linear infinite;
+          pointer-events: none;
         }
-        .dp-check:hover { transform: translateY(-2px) scale(1.05); }
+        .radar-center {
+          position: absolute; left: 50%; top: 50%; width: 10px; height: 10px;
+          transform: translate(-50%,-50%); border-radius: 9999px;
+          background: var(--gold); box-shadow: 0 0 18px var(--gold);
+        }
+        .radar-blip {
+          position: absolute; transform: translate(-50%,-50%);
+          display: grid; place-items: center; cursor: pointer;
+        }
+        .radar-pulse {
+          position: absolute; width: 26px; height: 26px; border-radius: 9999px;
+          border: 1px solid var(--gold); opacity: 0.8;
+          animation: konnect-pulse 2.4s var(--ease-luxe) infinite;
+        }
+        .radar-dot {
+          position: relative; width: 22px; height: 22px; border-radius: 9999px;
+          display: grid; place-items: center; font-size: 10px; font-weight: 800; color: #1a1408;
+          background: linear-gradient(135deg, color-mix(in oklab, var(--gold) 92%, white 30%), color-mix(in oklab, var(--gold) 55%, white 5%));
+          box-shadow: 0 4px 14px -2px color-mix(in oklab, var(--gold) 55%, transparent), inset 0 1px 0 rgba(255,255,255,0.55);
+          transition: transform 180ms;
+        }
+        .radar-blip:hover .radar-dot { transform: scale(1.18); }
+        .radar-label {
+          position: absolute; top: 26px; left: 50%; transform: translateX(-50%);
+          white-space: nowrap; font-size: 9px; font-weight: 700; color: var(--foreground);
+          background: color-mix(in oklab, var(--background) 80%, transparent);
+          padding: 1px 6px; border-radius: 9999px;
+          border: 1px solid color-mix(in oklab, var(--gold) 25%, transparent);
+          opacity: 0; transition: opacity 180ms;
+        }
+        .radar-label em { color: var(--gold); font-style: normal; }
+        .radar-blip:hover .radar-label { opacity: 1; }
         .btn-gold-white {
           background: linear-gradient(135deg,
             color-mix(in oklab, var(--gold) 92%, white 30%) 0%,
