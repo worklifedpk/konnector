@@ -197,8 +197,8 @@ function Landing() {
                             ? (u.instagram.startsWith("http") ? u.instagram : `https://${u.instagram.replace(/^@/, "instagram.com/")}`)
                             : u.email ? `mailto:${u.email}` : null;
                           const isMail = !u.instagram && !!u.email;
-                          return (
-                            <div key={`${u.session_id}-${i}`} className="dp-card">
+                          const cardInner = (
+                            <>
                               <div className="dp-ring">
                                 <div className="dp-inner">
                                   {u.name?.[0]?.toUpperCase() ?? "?"}
@@ -208,15 +208,20 @@ function Landing() {
                                 )}
                               </div>
                               <p className="mt-2 max-w-[78px] truncate text-center text-[11px] font-semibold text-foreground">{u.name}</p>
-                              {link && (
-                                <a href={link} target="_blank" rel="noreferrer"
-                                  title={isMail ? "Email" : "Open social"}
-                                  className="dp-check">
-                                  {isMail ? <Mail className="h-3 w-3" /> : <Link2 className="h-3 w-3" />}
-                                  <span>{isMail ? "Mail" : "Check"}</span>
-                                </a>
-                              )}
-                            </div>
+                              <span className="dp-check">
+                                {isMail ? <Mail className="h-3 w-3" /> : link ? <Link2 className="h-3 w-3" /> : <AtSign className="h-3 w-3" />}
+                                <span>{isMail ? "Mail" : link ? "Check" : "Profile"}</span>
+                              </span>
+                            </>
+                          );
+                          return link ? (
+                            <a key={`${u.session_id}-${i}`} href={link} target="_blank" rel="noreferrer"
+                              title={isMail ? `Email ${u.name}` : `Open ${u.name}'s profile`}
+                              className="dp-card group">
+                              {cardInner}
+                            </a>
+                          ) : (
+                            <div key={`${u.session_id}-${i}`} className="dp-card">{cardInner}</div>
                           );
                         })}
                     </div>
