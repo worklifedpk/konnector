@@ -99,8 +99,36 @@ function Landing() {
     } catch {}
   };
 
-  // marquee items: name + masked email + social handle
-  const tickerItems = live.filter((u) => u.email || u.instagram).slice(0, 12);
+  // Professional top strip — one chip per person, single contact (prefer social, else email)
+  const topProfiles = useMemo(() => {
+    const seen = new Set<string>();
+    return live
+      .filter((u) => u.email || u.instagram)
+      .filter((u) => {
+        const key = (u.instagram || u.email || u.session_id).toLowerCase().trim();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .slice(0, 14);
+  }, [live]);
+
+  // Radar dots — project nearby users onto a circular radar around viewer
+  const radarPoints = useMemo(() => {
+    const pool = (nearbyUsers.length ? nearbyUsers : live.slice(0, 10).map((u) => ({ ...u, _km: 0 })));
+    return pool.slice(0, 10).map((u, i) => {
+      // map distance (0..NEARBY_KM) to radius% (10..46), with synthetic fallback
+      const km = (u as any)._km ?? 0;
+      const r = coords && km > 0
+        ? Math.min(46, 10 + (km / NEARBY_KM) * 36)
+        : 14 + (i * 31) % 32;
+      const angle = (i * 47) % 360;
+      const rad = (angle * Math.PI) / 180;
+      const x = 50 + r * Math.cos(rad);
+      const y = 50 + r * Math.sin(rad);
+      return { u, x, y, delay: (i % 6) * 0.4, km };
+    });
+  }, [nearbyUsers, live, coords]);
 
   return (
     <main className="relative min-h-screen overflow-hidden">
