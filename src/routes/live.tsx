@@ -167,14 +167,15 @@ function LivePage() {
     toast.success("Request sent");
   };
 
-  const respond = async (req: Req, status: "accepted" | "declined") => {
-    const { error } = await sb.from("konnect_requests").update({ status }).eq("id", req.id);
-    if (error) return toast.error(error.message);
-    if (status === "accepted") {
-      toast.success("Connected — opening chat");
-      nav({ to: "/chat/$peer", params: { peer: req.from_session } });
-    }
-  };
+  const respond = async (req: Req, status: "accepted" | "declined") =>
+    withPending(`req:${req.id}`, async () => {
+      const { error } = await sb.from("konnect_requests").update({ status }).eq("id", req.id);
+      if (error) return toast.error(error.message);
+      if (status === "accepted") {
+        toast.success("Connected — opening chat");
+        nav({ to: "/chat/$peer", params: { peer: req.from_session } });
+      }
+    });
 
   const incomingPending = requests.filter((r) => r.to_session === me && r.status === "pending");
   const acceptedPeers = requests.filter((r) => r.status === "accepted");
